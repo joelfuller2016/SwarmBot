@@ -107,10 +107,33 @@ def create_main_layout() -> html.Div:
                     n_intervals=0
                 ),
                 
+                # WebSocket fallback interval (disabled by default)
+                dcc.Interval(
+                    id='websocket-fallback-interval',
+                    interval=1000,
+                    n_intervals=0,
+                    disabled=True
+                ),
+                
                 # Stores for data
                 dcc.Store(id='agent-data-store'),
                 dcc.Store(id='task-data-store'),
                 dcc.Store(id='metrics-data-store'),
+                
+                # WebSocket stores
+                dcc.Store(id='websocket-connection-store', data={'status': 'disconnected'}),
+                dcc.Store(id='websocket-event-store'),
+                dcc.Store(id='websocket-batch-store'),
+                
+                # WebSocket connection status indicator
+                html.Div(
+                    id='websocket-status',
+                    className='ws-status ws-disconnected',
+                    children=[
+                        html.I(className="fas fa-circle me-2"),
+                        html.Span("Disconnected", id='websocket-status-text')
+                    ]
+                ),
             ], className="main-content")
         ])
     ])

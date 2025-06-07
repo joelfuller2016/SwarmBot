@@ -1,9 +1,9 @@
 """
-Swarm Coordinator for managing multi-agent collaboration
+Swarm Coordinator for managing multi-agent collaboration with WebSocket event support
 """
 
 import asyncio
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import logging
@@ -49,6 +49,17 @@ class SwarmCoordinator:
         self.active_tasks: Dict[str, SwarmTask] = {}
         self.completed_tasks: Dict[str, SwarmTask] = {}
         self.communication: AgentCommunication = AgentCommunication()
+        
+        # Event callbacks for WebSocket integration
+        self.on_agent_status_change: Optional[Callable] = None
+        self.on_agent_created: Optional[Callable] = None
+        self.on_agent_deleted: Optional[Callable] = None
+        self.on_task_queued: Optional[Callable] = None
+        self.on_task_assigned: Optional[Callable] = None
+        self.on_task_completed: Optional[Callable] = None
+        self.on_task_failed: Optional[Callable] = None
+        self.on_performance_update: Optional[Callable] = None
+        self.on_system_alert: Optional[Callable] = None
         
         # Swarm configuration
         self.config = {
@@ -96,7 +107,27 @@ class SwarmCoordinator:
             "current_load": 0.0
         }
         
+        # Set event callbacks on agent
+        if hasattr(agent, 'set_event_callbacks'):
+            agent.set_event_callbacks(
+                on_status_change=self._handle_agent_status_change,
+                on_task_complete=self._handle_agent_task_complete,
+                on_error=self._handle_agent_error
+            )
+        
         logger.info(f"Registered agent {agent.name} ({agent.agent_id}) with role {agent.role.value}")
+        
+        # Emit agent created event
+        if self.on_agent_created:
+            try:
+                self.on_agent_created(
+                    agent_id=agent.agent_id,
+                    agent_type=agent.role.value,
+                    capabilities=[cap.name for cap in agent.capabilities],
+                    metadata={"name": agent.name, "created_at": datetime.now().isoformat()}
+                )
+            except Exception as e:
+                logger.error(f"Error emitting agent created event: {e}")
 
     def unregister_agent(self, agent_id: str) -> None:
         """
@@ -113,6 +144,16 @@ class SwarmCoordinator:
         self.communication.unregister_agent(agent_id)
         
         logger.info(f"Unregistered agent {agent.name} ({agent_id})")
+        
+        # Emit agent deleted event
+        if self.on_agent_deleted:
+            try:
+                self.on_agent_deleted(
+                    agent_id=agent_id,
+                    reason="Unregistered from swarm"
+                )
+            except Exception as e:
+                logger.error(f"Error emitting agent deleted event: {e}")
 
     async def submit_task(self, task: SwarmTask) -> str:
         """
@@ -129,6 +170,23 @@ class SwarmCoordinator:
         self.metrics["total_tasks"] += 1
         
         logger.info(f"Task {task.task_id} submitted to swarm")
+        
+        # Emit task queued event
+        if self.on_task_queued:
+            try:
+                self.on_task_queued(
+                    task_id=task.task_id,
+                    task_type=task.task_type,
+                    priority="high" if task.priority <= 3 else "medium" if task.priority <= 6 else "low",
+                    metadata={
+                        "description": task.description,
+                        "requirements": task.requirements,
+                        "dependencies": task.dependencies
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error emitting task queued event: {e}")
+        
         return task.task_id
 
     async def start(self) -> None:
@@ -201,6 +259,17 @@ class SwarmCoordinator:
                 task.status = "assigned"
                 self.active_tasks[task.task_id] = task
                 
+                # Emit task assigned event
+                for agent in agents:
+                    if self.on_task_assigned:
+                        try:
+                            self.on_task_assigned(
+                                task_id=task.task_id,
+                                agent_id=agent.agent_id
+                            )
+                        except Exception as e:
+                            logger.error(f"Error emitting task assigned event: {e}")
+                
                 # Execute task
                 asyncio.create_task(self._execute_task(task, agents))
                 
@@ -251,10 +320,34 @@ class SwarmCoordinator:
             
             logger.info(f"Task {task.task_id} completed successfully")
             
+            # Emit task completed event
+            if self.on_task_completed:
+                try:
+                    self.on_task_completed(
+                        task_id=task.task_id,
+                        agent_id=agents[0].agent_id if agents else None,
+                        result=task.result,
+                        duration_ms=int(completion_time * 1000)
+                    )
+                except Exception as e:
+                    logger.error(f"Error emitting task completed event: {e}")
+            
         except Exception as e:
             logger.error(f"Task {task.task_id} failed: {e}")
             task.status = "failed"
             task.result = {"error": str(e)}
+            
+            # Emit task failed event
+            if self.on_task_failed:
+                try:
+                    self.on_task_failed(
+                        task_id=task.task_id,
+                        agent_id=agents[0].agent_id if agents else None,
+                        error=str(e),
+                        traceback=None  # Could add traceback if needed
+                    )
+                except Exception as evt_e:
+                    logger.error(f"Error emitting task failed event: {evt_e}")
             
             # Handle retry logic
             if hasattr(task, "retry_count"):
@@ -408,6 +501,27 @@ class SwarmCoordinator:
             logger.info(f"Swarm status: {active_agents} active agents, "
                        f"{len(self.active_tasks)} active tasks, "
                        f"{len(self.completed_tasks)} completed tasks")
+            
+            # Emit performance metrics
+            if self.on_performance_update:
+                try:
+                    metrics = {
+                        "active_agents": active_agents,
+                        "total_agents": len(self.agents),
+                        "active_tasks": len(self.active_tasks),
+                        "queued_tasks": self.task_queue.qsize(),
+                        "completed_tasks": len(self.completed_tasks),
+                        "success_rate": (self.metrics["completed_tasks"] / self.metrics["total_tasks"] * 100
+                                       if self.metrics["total_tasks"] > 0 else 0),
+                        "average_completion_time": self.metrics["average_completion_time"],
+                        "agent_utilization": {
+                            agent_id: metrics["current_load"]
+                            for agent_id, metrics in self.metrics["agent_utilization"].items()
+                        }
+                    }
+                    self.on_performance_update(metrics)
+                except Exception as e:
+                    logger.error(f"Error emitting performance metrics: {e}")
 
     def _update_agent_metrics(self, agent_id: str, task: SwarmTask, start_time: datetime) -> None:
         """Update metrics for a specific agent"""
@@ -457,3 +571,37 @@ class SwarmCoordinator:
             "metrics": self.metrics,
             "config": self.config
         }
+    
+    def _handle_agent_status_change(self, agent_id: str, old_status: str, new_status: str, details: Optional[Dict] = None):
+        """Handle agent status change event"""
+        if self.on_agent_status_change:
+            try:
+                self.on_agent_status_change(agent_id, old_status, new_status, details)
+            except Exception as e:
+                logger.error(f"Error handling agent status change: {e}")
+    
+    def _handle_agent_task_complete(self, agent_id: str, task_id: str, result: Dict[str, Any]):
+        """Handle agent task completion event"""
+        # Update agent metrics
+        if agent_id in self.metrics["agent_utilization"]:
+            self.metrics["agent_utilization"][agent_id]["tasks_completed"] += 1
+    
+    def _handle_agent_error(self, agent_id: str, error: str, details: Optional[Dict] = None):
+        """Handle agent error event"""
+        if self.on_system_alert:
+            try:
+                self.on_system_alert(
+                    level="error",
+                    message=f"Agent {agent_id} encountered error: {error}",
+                    details=details or {}
+                )
+            except Exception as e:
+                logger.error(f"Error handling agent error event: {e}")
+    
+    def set_event_callbacks(self, **callbacks):
+        """Set event callbacks for WebSocket integration"""
+        for event_name, callback in callbacks.items():
+            if hasattr(self, event_name):
+                setattr(self, event_name, callback)
+            else:
+                logger.warning(f"Unknown event callback: {event_name}")

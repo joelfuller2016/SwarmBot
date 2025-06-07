@@ -1,414 +1,321 @@
-# SwarmBot - Multi-Agent AI System with MCP Integration
+# SwarmBot - AI Assistant with MCP Tools
 
-SwarmBot is a sophisticated multi-agent AI system that orchestrates collaborative AI operations through specialized agents, dynamic task distribution, and comprehensive real-time monitoring. It seamlessly integrates with multiple MCP (Model Context Protocol) servers, providing access to a wide range of tools through both a unified chat interface and an advanced web-based dashboard.
+A modular, extensible AI assistant that integrates with Model Context Protocol (MCP) tools for enhanced capabilities.
 
-## 🎯 Key Features
+## Quick Start
 
-### Core Capabilities
-- **Multi-Agent Architecture**: Specialized agents for research, coding, task management, monitoring, and validation
-- **Real-Time Dashboard**: Advanced Dash-based web UI for monitoring and controlling the swarm
-- **Dynamic Task Orchestration**: Priority-based task queue with dependency resolution and load balancing
-- **Agent Communication System**: Point-to-point and broadcast messaging between agents
-- **MCP Integration**: Seamless integration with 20+ MCP servers for diverse capabilities
-- **Multiple LLM Providers**: Support for OpenAI, Anthropic Claude, Groq, and Azure
-- **Automatic Tool Detection**: Natural language understanding for tool selection
-- **Comprehensive Monitoring**: Live performance metrics, agent status, and task progress visualization
-
-### Technical Features
-- **Unified Launcher**: Single entry point (`swarmbot.py`) with interactive mode selection
-- **Secure Configuration**: API keys stored in environment variables
-- **Robust Error Handling**: Retry logic and graceful degradation
-- **Scalable Architecture**: Configurable agent pools with auto-scaling capabilities
-- **Cross-Platform**: Works on Windows, macOS, and Linux
-
-## 📁 Project Structure
-
-```
-SwarmBot/
-├── src/                        # Core application modules
-│   ├── agents/                 # Multi-agent system
-│   │   ├── __init__.py
-│   │   ├── base_agent.py      # Base agent class
-│   │   ├── swarm_coordinator.py # Orchestration engine
-│   │   ├── agent_manager.py   # Agent lifecycle management
-│   │   ├── communication.py   # Inter-agent messaging
-│   │   └── specialized_agents.py # Agent implementations
-│   ├── ui/                     # User interfaces
-│   │   ├── base.py            # Base UI components (tkinter)
-│   │   └── dash/              # Web dashboard
-│   │       ├── __init__.py
-│   │       ├── app.py         # Dash application setup
-│   │       ├── layouts.py     # UI layouts
-│   │       ├── components.py  # Reusable components
-│   │       ├── callbacks.py   # Interactive callbacks
-│   │       └── integration.py # System integration
-│   ├── __init__.py            # Package initialization
-│   ├── config.py              # Configuration management
-│   ├── server.py              # MCP server connection management
-│   ├── tool.py                # Tool abstraction layer
-│   ├── llm_client.py          # LLM provider interface
-│   ├── chat_session.py        # Standard chat session handler
-│   ├── enhanced_chat_session.py # Enhanced mode with auto-tools
-│   ├── tool_matcher.py        # Natural language tool matching
-│   └── logging_utils.py       # Logging configuration
-├── tests/                      # Test suite
-│   ├── test_config.py         # Configuration tests
-│   ├── test_enhanced.py       # Enhanced mode tests
-│   ├── test_fixes.py          # Fix verification tests
-│   ├── test_minimal.py        # Minimal functionality test
-│   ├── test_setup.py          # Setup verification
-│   └── run_all_tests.py       # Test runner
-├── scripts/                    # Utility scripts
-│   ├── launchers/             # Batch/shell launchers
-│   │   ├── start_enhanced.bat
-│   │   ├── start_swarmbot.bat
-│   │   ├── swarmbot_enhanced.bat
-│   │   └── dashboard.py       # Dashboard launcher
-│   ├── demos/                 # Demo scripts
-│   │   └── demo_auto_tools.py
-│   └── test_all.bat           # Run all tests
-├── docs/                       # Documentation
-│   ├── AUTOMATIC_TOOLS_GUIDE.md
-│   ├── BASIC_BOT_README.md
-│   ├── ERROR_FIXES.md
-│   ├── QUICK_REFERENCE.md
-│   └── TASKMASTER_GUIDE.md
-├── config/                     # Configuration files
-│   ├── servers_config.json    # MCP servers configuration
-│   └── tool_patterns.json     # Tool matching patterns
-├── logs/                       # Application logs
-├── swarmbot.py                # 🚀 MAIN UNIFIED LAUNCHER
-├── swarmbot.bat               # Windows unified launcher
-├── unified_main.py            # Unified entry point (both modes)
-├── run_swarmbot.py           # Legacy launcher (redirects)
-├── requirements.txt          # Python dependencies
-├── REORGANIZATION_SUMMARY.md  # Recent reorganization details
-├── WORKFLOW_DIAGRAM.md        # Complete workflow visualization
-├── SWARM_ARCHITECTURE.md      # Multi-agent architecture docs
-└── .env                      # Environment variables (create this)
-```
-
-## 🏗️ Architecture
-
-### Multi-Agent System Overview
-
-```mermaid
-graph TB
-    subgraph "User Interface Layer"
-        DASH[Web Dashboard<br/>Real-time Monitoring]
-        CLI[CLI Interface]
-        SB[swarmbot.py<br/>Unified Launcher]
-    end
-    
-    subgraph "Agent Layer"
-        SC[Swarm Coordinator]
-        AM[Agent Manager]
-        subgraph "Specialized Agents"
-            RA[Research Agent]
-            CA[Code Agent]
-            TA[Task Agent]
-            MA[Monitor Agent]
-            VA[Validator Agent]
-        end
-    end
-
-    subgraph "Core Modules"
-        C[config.py<br/>Configuration]
-        S[server.py<br/>Server Manager]
-        T[tool.py<br/>Tool Interface]
-        L[llm_client.py<br/>LLM Client]
-        CS[chat_session.py<br/>Chat Handler]
-        ECS[enhanced_chat_session.py<br/>Enhanced Chat]
-        TM[tool_matcher.py<br/>NL Matching]
-        AC[Agent Communication]
-    end
-
-    subgraph "External Services"
-        MCP[MCP Servers<br/>Git, GitHub, etc.]
-        LLM[LLM Providers<br/>OpenAI, Claude, etc.]
-    end
-
-    subgraph "Data Flow"
-        ENV[.env<br/>API Keys]
-        SC[servers_config.json<br/>Server Config]
-        TP[tool_patterns.json<br/>Tool Patterns]
-    end
-
-    %% Entry point connections
-    DASH --> SC
-    CLI --> SC
-    SB --> SC
-    SC --> AM
-    AM --> RA
-    AM --> CA
-    AM --> TA
-    AM --> MA
-    AM --> VA
-
-    %% Configuration flow
-    C --> ENV
-    C --> SC
-    C --> S
-    C --> L
-
-    %% Standard mode flow
-    UM --> CS
-    CS --> S
-    CS --> L
-    S --> T
-    S --> MCP
-
-    %% Enhanced mode flow
-    UM --> ECS
-    ECS --> TM
-    ECS --> CS
-    TM --> TP
-
-    %% LLM connections
-    L --> LLM
-    CS --> L
-    ECS --> L
-
-    %% Tool execution
-    T --> MCP
-
-    classDef ui fill:#1f77b4,stroke:#1f77b4,stroke-width:3px
-    classDef agent fill:#2ca02c,stroke:#2ca02c,stroke-width:2px
-    classDef coreModule fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef data fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-
-    class DASH,CLI,SB ui
-    class SC,AM,RA,CA,TA,MA,VA agent
-    class C,S,T,L,CS,ECS,TM,AC coreModule
-    class MCP,LLM external
-    class ENV,SC,TP data
-```
-
-For a complete architecture diagram, see [SWARM_ARCHITECTURE.md](SWARM_ARCHITECTURE.md)
-
-## 🚀 Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Node.js and npm (for npx-based MCP servers)
-- UV (for uvx-based MCP servers)
-
-### Setup Steps
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/SwarmBot.git
-   cd SwarmBot
-   ```
-
-2. **Install Python dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Create environment file**:
-   Create a `.env` file in the project root with your API keys:
-   ```bash
-   # LLM Provider API Keys
-   OPENAI_API_KEY=your-openai-key
-   ANTHROPIC_API_KEY=your-anthropic-key
-   GROQ_API_KEY=your-groq-key
-   AZURE_API_KEY=your-azure-key
-
-   # Server-specific API Keys
-   GITHUB_PERSONAL_ACCESS_TOKEN=your-github-token
-   BRAVE_API_KEY=your-brave-key
-   N8N_HOST=your-n8n-host
-   N8N_API_KEY=your-n8n-key
-   ELEVENLABS_API_KEY=your-elevenlabs-key
-   EXA_API_KEY=your-exa-key
-
-   # LLM Provider Selection (optional, defaults to openai)
-   LLM_PROVIDER=openai  # Options: openai, anthropic, groq, azure
-   ```
-
-## 📖 Usage
-
-### Quick Start
-
-#### Command Line Interface
 ```bash
-# Unified launcher (recommended)
-python swarmbot.py              # Interactive mode selection
-python swarmbot.py standard     # Start in standard mode
-python swarmbot.py enhanced     # Start in enhanced mode
-python swarmbot.py auto         # Start in enhanced mode (alias)
+# Install requirements
+pip install -r requirements.txt
 
-# Command-line options
-python swarmbot.py --help       # Show help and usage
-python swarmbot.py --check      # Check requirements
-python swarmbot.py --clean      # Clean log files
+# Add jsonschema (if not already in requirements.txt)
+echo "jsonschema>=4.0.0" >> requirements.txt
+pip install jsonschema
+
+# Run in enhanced mode (default - automatic tool detection)
+python swarmbot.py
+
+# Run in standard mode (manual tool control)
+python swarmbot.py standard
+
+# Run with auto-prompt enabled
+python swarmbot.py --auto-prompt
+
+# Run with auto-prompt and custom iterations
+python swarmbot.py --auto-prompt --auto-prompt-iterations 5
+
+# Launch web dashboard UI
+python swarmbot.py --ui
+
+# Dashboard UI (June 7, 2025 Update)
+# Status: ~85% Complete - Functional with real data integration
+# Missing: WebSocket support (uses 1-second polling)
+# Access: http://localhost:8050
+# Documentation: See Docs/UI_MANUAL_COMPLETE.md for comprehensive guide
+# Validation: See Docs/UI_VALIDATION_REPORT_2025_06_07_FINAL.md
+
+# Validate configuration
+python swarmbot.py --validate
+
+# List available tools
+python swarmbot.py --list-tools
 ```
 
-#### Web Dashboard
+## Installation
+
+### Requirements
+
+Make sure you have Python 3.8+ installed, then install the dependencies:
+
 ```bash
-# Launch the web dashboard
-python scripts/launchers/dashboard.py
+# Install all requirements
+pip install -r requirements.txt
 
-# With options
-python scripts/launchers/dashboard.py --host 0.0.0.0 --port 8050 --debug
+# Note: If you get an import error for jsonschema, add it manually:
+echo "jsonschema>=4.0.0" >> requirements.txt
+pip install jsonschema
 ```
 
-Access the dashboard at http://localhost:8050
+Required packages include:
+- **Core**: python-dotenv, requests, mcp, uvicorn
+- **UI**: dash, plotly, dash-bootstrap-components, psutil
+- **LLM Providers**: openai, anthropic, groq
+- **Utilities**: colorama, asyncio
 
-#### Programmatic Usage
+## All Entry Points and Functions
+
+### 1. Command-Line Usage
+
+```bash
+# Basic launch (enhanced mode by default)
+python swarmbot.py
+
+# Standard mode
+python swarmbot.py standard
+
+# Enhanced mode (explicit)
+python swarmbot.py enhanced
+
+# Validate configuration only
+python swarmbot.py --validate
+
+# List all available tools
+python swarmbot.py --list-tools
+
+# Clean log files
+python swarmbot.py --clean-logs
+
+# Debug mode
+python swarmbot.py --debug
+
+# Skip validation
+python swarmbot.py --no-validation
+
+# Auto-prompt options
+python swarmbot.py --auto-prompt                    # Enable auto-prompt
+python swarmbot.py --no-auto-prompt                 # Disable auto-prompt
+python swarmbot.py --auto-prompt-iterations 10     # Set max iterations
+
+# Dashboard UI
+python swarmbot.py --ui                             # Launch web dashboard
+python scripts/launchers/dashboard.py               # Alternative dashboard launcher
+python launch_dashboard.py                          # Direct dashboard launcher
+
+# Combine options
+python swarmbot.py standard --debug
+python swarmbot.py enhanced --no-validation
+python swarmbot.py --auto-prompt --auto-prompt-iterations 5
+
+# Get help
+python swarmbot.py -h
+python swarmbot.py --help
+```
+
+### 2. Programmatic Usage
+
+Use SwarmBot as a module in your own code:
+
 ```python
-from src.agents import SwarmCoordinator, AgentManager
-from src.ui.dash.integration import SwarmBotDashboard
+# Import the main app class
+from src.core.app import SwarmBotApp
 
-# Create and run dashboard
-dashboard = SwarmBotDashboard()
-dashboard.run(host="0.0.0.0", port=8050)
+# Create instance
+app = SwarmBotApp()
+
+# Run with arguments
+app.run(['enhanced'])  # Enhanced mode
+app.run(['standard'])  # Standard mode
+app.run(['--validate'])  # Validate only
+app.run(['--list-tools'])  # List tools
+
+# Or use specific methods
+import asyncio
+
+# Setup environment
+app.setup_environment()
+
+# Validate configuration
+is_valid = app.validate_configuration()
+
+# Clean logs
+app.clean_logs()
+
+# List tools (async)
+asyncio.run(app.list_tools())
+
+# Run chat session (async)
+asyncio.run(app.run_chat_session('enhanced'))
 ```
 
-### Available Commands
+### 3. Direct Module Access
 
-Once SwarmBot is running:
-- `help` - Show available commands
-- `tools` - List all available tools
-- `servers` - Show active MCP servers
-- `quit` - Exit the application
-- `manual` - Toggle automatic tool execution (Enhanced mode only)
+For advanced users who want to use specific components:
 
-### Multi-Agent System Features
+```python
+# Configuration management
+from src.config import Configuration
+config = Configuration()
 
-#### Agent Types
-1. **Research Agent**: Web research, document analysis, knowledge synthesis
-2. **Code Agent**: Code generation, review, refactoring, debugging
-3. **Task Agent**: Task planning, distribution, progress tracking
-4. **Monitor Agent**: Performance monitoring, error detection, health checks
-5. **Validator Agent**: Result validation, quality assessment, compliance checks
+# Chat sessions
+from src.chat_session import ChatSession
+from src.enhanced_chat_session import EnhancedChatSession
 
-#### Dashboard Features
-- **Real-time Agent Monitoring**: Live status, load, and reliability metrics
-- **Task Management**: Queue visualization, timeline view, priority handling
-- **Performance Analytics**: CPU/memory usage, task completion rates, agent utilization
-- **Swarm Control**: Agent creation, task submission, configuration management
-- **Communication Visualization**: Network graph of agent interactions
+# LLM client
+from src.llm_client import LLMClient
 
-### Enhanced Mode Features
+# Server management
+from src.server import Server
 
-Enhanced mode includes intelligent tool detection that automatically selects and executes tools based on natural language:
+# Agent system
+from src.agents.base_agent import BaseAgent
+from src.agents.specialized_agents import ResearchAgent, CodeAgent
+from src.agents.swarm_coordinator import SwarmCoordinator
+```
 
-**Examples**:
-- "Show me config.json" → Automatically uses `read_file`
-- "What tasks do I have?" → Automatically uses `get_tasks`
-- "Search for Python tutorials" → Automatically uses `web_search`
-- "What changed in git?" → Automatically uses `git_status`
+### 4. Interactive Python Usage
 
-## 🛠️ Available MCP Servers
+```python
+# Start Python interpreter
+>>> from src.core.app import SwarmBotApp
+>>> app = SwarmBotApp()
+>>> 
+>>> # Check configuration
+>>> app.validate_configuration()
+>>> 
+>>> # Parse arguments
+>>> args = app.parse_arguments(['enhanced', '--debug'])
+>>> print(args.mode)  # 'enhanced'
+>>> print(args.debug)  # True
+```
 
-### Development Tools
-- **mcp-server-git** - Git repository operations
-- **github** - GitHub API interactions
-- **taskmaster-ai** - Task management and project planning
-- **code-reasoning** - Advanced code analysis and reasoning
+### 5. Utility Scripts
 
-### Search & Research
-- **brave-search** - Web search capabilities
-- **exa** - Advanced search and research
-- **mcp-server-deep-research** - Deep research capabilities
-
-### Browser & Web
-- **puppeteer** - Browser automation
-- **browsermcp** - Browser control and interaction
-
-### System & Files
-- **desktop-commander** - Desktop file and system operations
-- **everything** - Windows file search
-- **ripgrep** - Fast file content search
-
-### AI & Automation
-- **sequential-thinking** - Step-by-step problem solving
-- **mcp-reasoner** - Advanced reasoning capabilities
-- **n8n-workflow-builder** - Workflow automation
-- **ElevenLabs** - Text-to-speech and voice capabilities
-
-### Data & Storage
-- **mcp-server-sqlite** - SQLite database operations
-- **memory** - Knowledge graph for persistent memory
-
-## 🧪 Testing
-
-Run the test suite:
 ```bash
+# Fix Unicode issues in all Python files
+python scripts/fix_unicode.py
+
+# Test the structure
+python test_structure.py
+
 # Run all tests
 python tests/run_all_tests.py
 
-# Run specific tests
-python tests/test_minimal.py     # Basic functionality
-python tests/test_enhanced.py    # Enhanced mode features
-python tests/test_fixes.py       # Error fix verification
+# Test setup
+python tests/test_setup.py
 ```
 
-## 🔐 Security
+## API Reference
 
-- All API keys stored in environment variables
-- No hardcoded secrets in source code
-- Secure logging (API keys never logged)
-- Input validation for user commands
-- Configurable server permissions
+The `SwarmBotApp` class exposes these methods:
 
-## 🐛 Troubleshooting
+| Method | Description | Type |
+|--------|-------------|------|
+| `__init__()` | Initialize the app | Sync |
+| `setup_environment()` | Configure environment variables and encoding | Sync |
+| `parse_arguments(args)` | Parse command-line arguments | Sync |
+| `clean_logs()` | Remove old log files | Sync |
+| `validate_configuration()` | Check configuration validity | Sync |
+| `list_tools()` | List all available MCP tools | Async |
+| `run_chat_session(mode)` | Start chat session | Async |
+| `run(args)` | Main entry point | Sync |
 
-### Common Issues
+## Project Structure
 
-1. **Server initialization failures**:
-   - Check logs in `swarmbot.log` or `swarmbot_enhanced.log`
-   - Verify server command exists (npx/uvx installed)
-   - Ensure required API keys are set in `.env`
+```
+SwarmBot/
+├── swarmbot.py              # Single entry point (19 lines)
+├── src/
+│   ├── core/
+│   │   ├── app.py          # Main application logic
+│   │   └── __init__.py     # Core module exports
+│   ├── agents/             # Multi-agent system components
+│   ├── ui/                 # User interface components
+│   ├── config.py           # Configuration management
+│   ├── server.py           # MCP server management
+│   ├── chat_session.py     # Standard chat mode
+│   ├── enhanced_chat_session.py  # Enhanced chat mode
+│   └── llm_client.py       # LLM provider interface
+├── config/
+│   ├── servers_config.json # MCP server configurations
+│   └── tool_patterns.json  # Tool detection patterns
+├── tests/                  # Test suite
+├── scripts/
+│   ├── deprecated/         # Old entry points (archived)
+│   └── fix_unicode.py      # Unicode fixing utility
+└── .env                    # API keys and environment variables
+```
 
-2. **LLM connection issues**:
-   - Verify API key is correct
-   - Check API quota/limits
-   - Try switching providers via `LLM_PROVIDER`
+## Features
 
-3. **Tool execution errors**:
-   - Check server is properly initialized
-   - Verify tool arguments are correct
-   - Review server-specific requirements
+- **Modular Architecture**: Clean separation of concerns with single entry point
+- **Multiple Modes**: 
+  - Standard: Manual tool execution with full control
+  - Enhanced: Automatic tool detection from natural language
+- **Auto-Prompt System**: Automatically continues multi-step tasks without manual intervention
+  - Smart goal detection for incomplete tasks
+  - Configurable iteration limits for safety
+  - Visual progress indicators
+  - Command-line and configuration file support
+- **Multi-Agent System**: Specialized agents for different tasks
+- **MCP Integration**: Connect to various MCP servers and tools
+- **Multiple LLM Support**: OpenAI, Anthropic, Groq
+- **Real-time Dashboard**: Web-based monitoring interface
 
-4. **Verbose logging or console spam**:
-   - The logging system filters out non-critical MCP warnings
-   - To adjust logging levels, modify `src/logging_utils.py`
-   - Check log files for complete debugging information
+## Configuration
 
-## 🤝 Contributing
+1. Create `.env` file with your API keys:
+```env
+GROQ_API_KEY=your_groq_key
+ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_API_KEY=your_openai_key
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add/update tests
-5. Submit a pull request
+# Auto-prompt configuration (optional)
+AUTO_PROMPT_ENABLED=false              # Enable auto-prompt (default: false)
+AUTO_PROMPT_MAX_ITERATIONS=1           # Max iterations (default: 1)
+AUTO_PROMPT_GOAL_DETECTION=true        # Enable goal detection (default: true)
+AUTO_PROMPT_SAVE_STATE=true            # Save state between sessions (default: true)
+```
 
-## 📄 License
+2. Configure MCP servers in `config/servers_config.json`
 
-This project is licensed under the MIT License.
+3. Run validation to ensure everything is set up:
+```bash
+python swarmbot.py --validate
+```
 
-## 🆕 Recent Updates
+## Development
 
-- ✅ **Multi-Agent System** - Complete agent architecture with specialized roles
-- ✅ **Real-Time Dashboard** - Web-based monitoring and control interface
-- ✅ **Agent Orchestration** - Dynamic task distribution and load balancing
-- ✅ **Communication System** - Inter-agent messaging and coordination
-- ✅ **Fixed MCP notification validation warnings** - Clean console output
-- ✅ **Unified launcher system** - Single entry point with `swarmbot.py`
-- ✅ Modularized codebase with clean separation of concerns
-- ✅ Enhanced mode with automatic tool detection
-- ✅ Comprehensive monitoring and analytics
+The codebase is designed to be modular and extensible:
 
-## 📚 Additional Resources
+- **Entry Point**: `swarmbot.py` - Minimal launcher that delegates to core
+- **Core Logic**: `src/core/app.py` - Main application class
+- **Modular Components**: Each feature in its own module
+- **Clean Imports**: All functionality accessible through proper imports
 
-- [Multi-Agent Architecture](SWARM_ARCHITECTURE.md) - Complete system design
-- [Automatic Tools Guide](docs/AUTOMATIC_TOOLS_GUIDE.md)
-- [Error Fixes Documentation](docs/ERROR_FIXES.md)
-- [Quick Reference](docs/QUICK_REFERENCE.md)
-- [Taskmaster Integration Guide](docs/TASKMASTER_GUIDE.md)
-- [Workflow Diagram](WORKFLOW_DIAGRAM.md) - System workflow visualization
+## Troubleshooting
+
+### Unicode/Emoji Issues on Windows
+```bash
+python scripts/fix_unicode.py
+```
+
+### Import Errors
+If you get import errors for `jsonschema`:
+```bash
+pip install jsonschema>=4.0.0
+```
+
+### Log Files
+For detailed debugging, check:
+- `swarmbot.log` (standard mode)
+- `swarmbot_enhanced.log` (enhanced mode)
+
+### Validation Issues
+Run validation to identify configuration problems:
+```bash
+python swarmbot.py --validate
+```
+
+## License
+
+[Your License Here]

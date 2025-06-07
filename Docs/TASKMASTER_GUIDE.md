@@ -1,5 +1,23 @@
 # TaskMaster-AI Integration Guide
 
+## 🎯 CURRENT PRIORITY: WebSocket Implementation (Task #35)
+
+**The SwarmBot project's next critical milestone is implementing WebSocket support for real-time dashboard updates.**
+
+### Why This Is Priority #1:
+- **Completes the UI** - Takes dashboard from 85% to 100% complete
+- **Instant Updates** - Real-time agent status and task completion notifications
+- **90% Performance Gain** - Reduces server load and network traffic
+- **Professional UX** - No more 1-second update delays
+
+### Quick Status Check:
+```
+You: Get task 35
+You: Show me the websocket implementation subtasks
+```
+
+---
+
 This guide explains how to use TaskMaster-AI with SwarmBot for project management and task tracking.
 
 ## Overview

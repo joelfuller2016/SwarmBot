@@ -10,7 +10,7 @@ from .server import Server
 from .tool import Tool
 from .llm_client import LLMClient, LLMProvider
 from .chat_session import ChatSession
-from .enhanced_chat_session import EnhancedChatSession
+# from .enhanced_chat_session import EnhancedChatSession  # Temporarily disabled to fix circular import
 from .tool_matcher import ToolMatcher, ToolMatch
 from .logging_utils import configure_logging, MCPNotificationFilter
 
@@ -21,7 +21,7 @@ __all__ = [
     "LLMClient",
     "LLMProvider",
     "ChatSession",
-    "EnhancedChatSession",
+    # "EnhancedChatSession",  # Temporarily disabled to fix circular import
     "ToolMatcher",
     "ToolMatch",
     "configure_logging",

@@ -13,6 +13,11 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.agents import SwarmCoordinator, AgentManager
 from src.ui.dash import create_app, serve_app, register_callbacks
+from src.ui.dash.websocket_events import (
+    emit_agent_status_change, emit_agent_created, emit_agent_deleted,
+    emit_task_queued, emit_task_assigned, emit_task_completed, emit_task_failed,
+    emit_performance_metrics, emit_system_alert
+)
 from src.config import Configuration
 from src.server import Server
 from src.llm_client import LLMClient
@@ -114,10 +119,27 @@ class SwarmBotDashboard:
             logger.error(f"Failed to start swarm: {e}")
     
     def setup_dashboard(self):
-        """Setup the Dash dashboard"""
+        """Setup the Dash dashboard with WebSocket integration"""
         try:
             # Create Dash app
             self.app = create_app(swarm_coordinator=self.swarm_coordinator)
+            
+            # Store references in app for callbacks
+            self.app.swarm_coordinator = self.swarm_coordinator
+            self.app.agent_manager = self.agent_manager
+            
+            # Connect WebSocket event handlers to SwarmCoordinator
+            self.swarm_coordinator.set_event_callbacks(
+                on_agent_status_change=emit_agent_status_change,
+                on_agent_created=emit_agent_created,
+                on_agent_deleted=emit_agent_deleted,
+                on_task_queued=emit_task_queued,
+                on_task_assigned=emit_task_assigned,
+                on_task_completed=emit_task_completed,
+                on_task_failed=emit_task_failed,
+                on_performance_update=emit_performance_metrics,
+                on_system_alert=emit_system_alert
+            )
             
             # Register callbacks
             self.app = register_callbacks(self.app)
@@ -126,7 +148,7 @@ class SwarmBotDashboard:
             from src.ui.dash.layouts import create_main_layout
             self.app.layout = create_main_layout()
             
-            logger.info("Dashboard setup complete")
+            logger.info("Dashboard setup complete with WebSocket integration")
             
         except Exception as e:
             logger.error(f"Failed to setup dashboard: {e}")

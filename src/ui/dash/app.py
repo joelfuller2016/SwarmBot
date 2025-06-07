@@ -1,5 +1,5 @@
 """
-Main Dash application for SwarmBot UI
+Main Dash application for SwarmBot UI with WebSocket support
 """
 
 import dash
@@ -7,23 +7,33 @@ from dash import Dash, html, dcc
 import dash_bootstrap_components as dbc
 from dash_extensions.enrich import DashProxy, MultiplexerTransform
 import plotly.io as pio
+from flask_socketio import SocketIO
+from flask import Flask
+import os
 from typing import Optional
+from .websocket_events import init_websocket_events
+from .websocket_resilience import create_resilient_connection
 
 # Set plotly theme
 pio.templates.default = "plotly_dark"
 
+# Global SocketIO instance
+socketio = None
+
 
 def create_app(swarm_coordinator=None, debug: bool = False) -> Dash:
     """
-    Create and configure the Dash application
+    Create and configure the Dash application with WebSocket support
     
     Args:
         swarm_coordinator: SwarmCoordinator instance to monitor
         debug: Enable debug mode
         
     Returns:
-        Configured Dash application
+        Configured Dash application with SocketIO
     """
+    global socketio
+    
     # Use DashProxy with MultiplexerTransform for better callback handling
     app = DashProxy(
         __name__,
@@ -37,17 +47,37 @@ def create_app(swarm_coordinator=None, debug: bool = False) -> Dash:
         title="SwarmBot Control Center"
     )
     
-    # Store swarm coordinator reference
-    app.swarm_coordinator = swarm_coordinator
+    # Configure Flask server for SocketIO
+    server = app.server
+    server.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'swarmbot-secret-key-change-in-production')
     
-    # Configure app
-    app.config.update({
-        "app_name": "SwarmBot",
-        "update_interval": 1000,  # 1 second update interval
-        "max_agents": 50,
-        "max_tasks_display": 100,
-        "theme": "dark"
-    })
+    # Initialize SocketIO with the Flask server
+    socketio = SocketIO(
+        server,
+        cors_allowed_origins="*",  # Configure appropriately for production
+        async_mode='threading',
+        logger=debug,
+        engineio_logger=debug
+    )
+    
+    # Initialize WebSocket event handlers
+    init_websocket_events(socketio)
+    
+    # Create resilient connection manager
+    resilience = create_resilient_connection(socketio, app)
+    
+    # Store references in app
+    app.socketio = socketio
+    app.swarm_coordinator = swarm_coordinator
+    app.resilience = resilience
+    app.fallback_enabled = False
+    
+    # Store custom configuration as app attributes
+    app.app_name = "SwarmBot"
+    app.update_interval = 1000  # 1 second update interval
+    app.max_agents = 50
+    app.max_tasks_display = 100
+    app.theme = "dark"
     
     # Add custom CSS
     app.index_string = '''
@@ -58,6 +88,7 @@ def create_app(swarm_coordinator=None, debug: bool = False) -> Dash:
             <title>{%title%}</title>
             {%favicon%}
             {%css%}
+            <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
             <style>
                 body {
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -149,7 +180,186 @@ def create_app(swarm_coordinator=None, debug: bool = False) -> Dash:
                 ::-webkit-scrollbar-thumb:hover {
                     background: #484f58;
                 }
+                
+                /* WebSocket connection status indicator */
+                .ws-status {
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    padding: 10px 20px;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    z-index: 1000;
+                    transition: all 0.3s ease;
+                }
+                
+                .ws-connected {
+                    background-color: #10b981;
+                    color: white;
+                }
+                
+                .ws-disconnected {
+                    background-color: #ef4444;
+                    color: white;
+                }
+                
+                .ws-connecting {
+                    background-color: #f59e0b;
+                    color: white;
+                }
             </style>
+            <script>
+                // Initialize Socket.IO connection with resilience
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Connection configuration
+                    const config = {
+                        reconnection: true,
+                        reconnectionDelay: 1000,
+                        reconnectionDelayMax: 30000,
+                        reconnectionAttempts: Infinity,
+                        timeout: 20000,
+                        transports: ['websocket', 'polling']
+                    };
+                    
+                    // Initialize connection
+                    window.swarmSocket = io(config);
+                    window.wsReconnectAttempts = 0;
+                    window.wsQueuedEvents = [];
+                    window.wsMaxQueueSize = 100;
+                    
+                    // Connection event handlers
+                    window.swarmSocket.on('connect', function() {
+                        console.log('WebSocket connected');
+                        window.wsReconnectAttempts = 0;
+                        updateConnectionStatus('connected');
+                        
+                        // Flush queued events
+                        if (window.wsQueuedEvents.length > 0) {
+                            console.log('Flushing ' + window.wsQueuedEvents.length + ' queued events');
+                            window.wsQueuedEvents.forEach(function(event) {
+                                window.swarmSocket.emit(event.type, event.data);
+                            });
+                            window.wsQueuedEvents = [];
+                        }
+                        
+                        // Send connection quality info
+                        window.swarmSocket.emit('connection_quality', {
+                            user_agent: navigator.userAgent,
+                            timestamp: new Date().toISOString()
+                        });
+                    });
+                    
+                    window.swarmSocket.on('disconnect', function() {
+                        console.log('WebSocket disconnected');
+                        updateConnectionStatus('disconnected');
+                    });
+                    
+                    window.swarmSocket.on('connect_error', function(error) {
+                        console.error('WebSocket connection error:', error);
+                        window.wsReconnectAttempts++;
+                        updateConnectionStatus('error');
+                        
+                        // Switch to fallback after 5 attempts
+                        if (window.wsReconnectAttempts >= 5 && !window.wsFallbackEnabled) {
+                            console.log('Enabling fallback polling mode');
+                            window.wsFallbackEnabled = true;
+                            // Signal Dash to enable fallback interval
+                            window.dispatchEvent(new CustomEvent('websocket-fallback', {
+                                detail: { enabled: true }
+                            }));
+                        }
+                    });
+                    
+                    window.swarmSocket.on('reconnecting', function(attemptNumber) {
+                        console.log('WebSocket reconnecting (attempt ' + attemptNumber + ')');
+                        updateConnectionStatus('connecting');
+                    });
+                    
+                    window.swarmSocket.on('reconnect', function() {
+                        console.log('WebSocket reconnected');
+                        window.wsFallbackEnabled = false;
+                        window.dispatchEvent(new CustomEvent('websocket-fallback', {
+                            detail: { enabled: false }
+                        }));
+                    });
+                    
+                    // Heartbeat handling
+                    window.swarmSocket.on('ping', function(data) {
+                        window.swarmSocket.emit('pong', {
+                            ping_id: data.ping_id,
+                            timestamp: new Date().toISOString()
+                        });
+                    });
+                    
+                    // Function to update connection status indicator
+                    function updateConnectionStatus(status) {
+                        window.wsConnectionStatus = status;
+                        
+                        // Update visual indicator
+                        const indicator = document.getElementById('websocket-status');
+                        if (indicator) {
+                            indicator.className = 'ws-status ws-' + status;
+                            const text = document.getElementById('websocket-status-text');
+                            if (text) {
+                                switch(status) {
+                                    case 'connected':
+                                        text.textContent = 'Connected';
+                                        break;
+                                    case 'connecting':
+                                        text.textContent = 'Connecting...';
+                                        break;
+                                    case 'disconnected':
+                                        text.textContent = 'Disconnected';
+                                        break;
+                                    case 'error':
+                                        text.textContent = 'Connection Error';
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Queue event if disconnected
+                    window.queueWebSocketEvent = function(eventType, data) {
+                        if (window.swarmSocket.connected) {
+                            window.swarmSocket.emit(eventType, data);
+                        } else {
+                            // Queue event for later
+                            if (window.wsQueuedEvents.length < window.wsMaxQueueSize) {
+                                window.wsQueuedEvents.push({
+                                    type: eventType,
+                                    data: data,
+                                    timestamp: new Date().toISOString()
+                                });
+                            }
+                        }
+                    };
+                    
+                    // Monitor connection quality
+                    setInterval(function() {
+                        if (window.swarmSocket.connected) {
+                            const startTime = Date.now();
+                            window.swarmSocket.emit('ping', {
+                                ping_id: 'quality_' + startTime
+                            });
+                            
+                            // Listen for pong to measure latency
+                            window.swarmSocket.once('pong', function(data) {
+                                if (data.ping_id === 'quality_' + startTime) {
+                                    const latency = Date.now() - startTime;
+                                    window.wsLatency = latency;
+                                    
+                                    // Adapt behavior based on latency
+                                    if (latency > 500) {
+                                        console.log('High latency detected: ' + latency + 'ms');
+                                    }
+                                }
+                            });
+                        }
+                    }, 30000); // Check every 30 seconds
+                });
+            </script>
         </head>
         <body>
             {%app_entry%}
@@ -167,7 +377,7 @@ def create_app(swarm_coordinator=None, debug: bool = False) -> Dash:
 
 def serve_app(app: Dash, host: str = "127.0.0.1", port: int = 8050, debug: bool = False):
     """
-    Serve the Dash application
+    Serve the Dash application with WebSocket support
     
     Args:
         app: Dash application instance
@@ -175,4 +385,11 @@ def serve_app(app: Dash, host: str = "127.0.0.1", port: int = 8050, debug: bool 
         port: Port number
         debug: Enable debug mode
     """
-    app.run_server(host=host, port=port, debug=debug, threaded=True)
+    global socketio
+    
+    if hasattr(app, 'socketio') and app.socketio:
+        # Use SocketIO to run the server
+        app.socketio.run(app.server, host=host, port=port, debug=debug)
+    else:
+        # Fallback to regular Dash server
+        app.run(host=host, port=port, debug=debug, threaded=True)

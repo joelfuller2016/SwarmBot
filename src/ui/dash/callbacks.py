@@ -1,8 +1,8 @@
 """
-Dash callbacks for SwarmBot UI interactivity
+Enhanced callbacks for SwarmBot UI with real data integration and WebSocket support
 """
 
-from dash import Input, Output, State, callback, ctx, ALL
+from dash import Input, Output, State, callback, ctx, ALL, html
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
@@ -11,6 +11,7 @@ import json
 from typing import Dict, List, Any, Tuple
 import asyncio
 import logging
+from collections import deque
 
 from .layouts import (
     create_agent_monitor_layout,
@@ -25,20 +26,37 @@ from .components import (
     CommunicationGraph,
     PerformanceChart
 )
+from .websocket_client import process_websocket_events, process_websocket_batches
 
 logger = logging.getLogger(__name__)
 
-# Global data stores (in production, use proper state management)
+# Global data stores with proper initialization
 performance_history = {
-    "cpu": [],
-    "memory": [],
-    "timestamps": []
+    "cpu": deque(maxlen=60),  # Keep last 60 data points
+    "memory": deque(maxlen=60),
+    "timestamps": deque(maxlen=60)
 }
+
+# Activity log to track real events
+activity_log = deque(maxlen=100)  # Keep last 100 activities
+
+# Communication history
+communication_history = deque(maxlen=200)  # Keep last 200 messages
+
+
+def log_activity(activity_type: str, description: str, agent_id: str = None):
+    """Log an activity to the activity feed"""
+    activity_log.append({
+        "timestamp": datetime.now(),
+        "type": activity_type,
+        "description": description,
+        "agent_id": agent_id
+    })
 
 
 def register_callbacks(app):
     """Register all callbacks for the Dash application"""
-    
+
     @app.callback(
         Output('page-content', 'children'),
         Input('url', 'pathname')
@@ -56,38 +74,115 @@ def register_callbacks(app):
         else:
             # Default to agent monitor
             return create_agent_monitor_layout()
-    
+
     @app.callback(
         [Output('agent-data-store', 'data'),
          Output('task-data-store', 'data'),
          Output('metrics-data-store', 'data')],
-        Input('interval-component', 'n_intervals')
+        [Input('interval-component', 'n_intervals'),
+         Input('websocket-fallback-interval', 'n_intervals'),
+         Input('websocket-event-store', 'data'),
+         Input('websocket-batch-store', 'data')],
+        [State('agent-data-store', 'data'),
+         State('task-data-store', 'data'),
+         State('metrics-data-store', 'data'),
+         State('websocket-connection-store', 'data')]
     )
-    def update_data_stores(n):
-        """Update data stores from SwarmCoordinator"""
-        if not hasattr(app, 'swarm_coordinator') or not app.swarm_coordinator:
-            # Return dummy data if no coordinator
-            return {}, {}, {}
+    def update_data_stores(n, n_fallback, ws_events, ws_batches, 
+                          current_agents, current_tasks, current_metrics, ws_connection):
+        """Update data stores from SwarmCoordinator or WebSocket events"""
         
-        try:
-            # Get swarm status
-            status = app.swarm_coordinator.get_swarm_status()
+        # Check if we have WebSocket events or batches to process
+        if ws_events or ws_batches:
+            # Process WebSocket updates
+            event_updates = process_websocket_events(ws_events) if ws_events else {}
+            batch_updates = process_websocket_batches(ws_batches) if ws_batches else {}
             
-            # Extract data
-            agents = status.get("agents", {})
-            tasks = {
-                "queued": [],
-                "active": status.get("tasks", {}).get("active", 0),
-                "completed": status.get("tasks", {}).get("completed", 0)
-            }
-            metrics = status.get("metrics", {})
+            # Merge updates with current data
+            agents = current_agents or {}
+            tasks = current_tasks or {}
+            metrics = current_metrics or {}
+            
+            # Apply event updates
+            if event_updates.get('agents'):
+                for agent_id, agent_data in event_updates['agents'].items():
+                    if agent_data is None:
+                        agents.pop(agent_id, None)
+                    else:
+                        if agent_id in agents:
+                            agents[agent_id].update(agent_data)
+                        else:
+                            agents[agent_id] = agent_data
+            
+            if event_updates.get('tasks'):
+                for task_id, task_data in event_updates['tasks'].items():
+                    if task_id in tasks.get('active', {}):
+                        tasks['active'][task_id].update(task_data)
+                    elif task_id in tasks.get('queued', []):
+                        # Update queued task
+                        for task in tasks['queued']:
+                            if task.get('task_id') == task_id:
+                                task.update(task_data)
+            
+            # Apply batch updates
+            if batch_updates.get('agents'):
+                for agent_id, agent_data in batch_updates['agents'].items():
+                    if agent_id in agents:
+                        agents[agent_id].update(agent_data)
+            
+            if batch_updates.get('metrics'):
+                metrics.update(batch_updates['metrics'])
             
             return agents, tasks, metrics
+        
+        # Fallback to polling if WebSocket is disconnected or no events
+        if (not ws_connection or ws_connection.get('status') != 'connected' or 
+            ctx.triggered_id in ['interval-component', 'websocket-fallback-interval']):
             
-        except Exception as e:
-            logger.error(f"Error updating data stores: {e}")
-            return {}, {}, {}
-    
+            if not hasattr(app, 'swarm_coordinator') or not app.swarm_coordinator:
+                # Return current data if no coordinator
+                return current_agents or {}, current_tasks or {}, current_metrics or {}
+
+            try:
+                # Get real swarm status
+                status = app.swarm_coordinator.get_swarm_status()
+
+                # Extract real data
+                agents = status.get("agents", {})
+
+                # Get real task queue data
+                task_queue_items = []
+                if hasattr(app.swarm_coordinator, 'task_queue'):
+                    # Convert queue to list for display
+                    temp_queue = list(app.swarm_coordinator.task_queue._queue)
+                    task_queue_items = [
+                        {
+                            "task_id": task.task_id,
+                            "type": task.task_type,
+                            "priority": "high" if task.priority <= 3 else "medium" if task.priority <= 6 else "low",
+                            "description": task.description,
+                            "created_at": task.created_at.isoformat() if task.created_at else datetime.now().isoformat()
+                        }
+                        for priority, task in temp_queue
+                    ]
+
+                tasks = {
+                    "queued": task_queue_items,
+                    "active": app.swarm_coordinator.active_tasks,
+                    "completed": len(app.swarm_coordinator.completed_tasks)
+                }
+
+                metrics = status.get("metrics", {})
+
+                return agents, tasks, metrics
+
+            except Exception as e:
+                logger.error(f"Error updating data stores: {e}")
+                return current_agents or {}, current_tasks or {}, current_metrics or {}
+        
+        # No update needed
+        raise PreventUpdate
+
     @app.callback(
         [Output('active-agents-count', 'children'),
          Output('running-tasks-count', 'children'),
@@ -97,30 +192,30 @@ def register_callbacks(app):
         Input('task-data-store', 'data')
     )
     def update_sidebar_stats(agent_data, task_data):
-        """Update sidebar statistics"""
+        """Update sidebar statistics with real data"""
         if not agent_data or not task_data:
             return "0", "0", "0%", "0 MB"
-        
+
         # Count active agents
-        active_agents = sum(1 for agent in agent_data.values() 
+        active_agents = sum(1 for agent in agent_data.values()
                           if agent.get("status") != "offline")
-        
+
         # Count running tasks
         running_tasks = task_data.get("active", 0)
-        
-        # Simulate CPU and memory (in production, get from system)
+
+        # Get real CPU and memory usage
         import psutil
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         memory_mb = memory.used / 1024 / 1024
-        
+
         return (
             str(active_agents),
             str(running_tasks),
             f"{cpu_percent:.1f}%",
             f"{memory_mb:.0f} MB"
         )
-    
+
     @app.callback(
         Output('agent-grid', 'children'),
         Input('agent-data-store', 'data')
@@ -129,7 +224,7 @@ def register_callbacks(app):
         """Update the agent display grid"""
         if not agent_data:
             return html.Div("No agents active", className="text-muted text-center p-4")
-        
+
         agent_cards = []
         for agent_id, agent_info in agent_data.items():
             agent_info['agent_id'] = agent_id
@@ -137,41 +232,47 @@ def register_callbacks(app):
             agent_cards.append(
                 dbc.Col([card], width=12, md=6, lg=4, xl=3, className="mb-4")
             )
-        
+
         return agent_cards
-    
+
     @app.callback(
         Output('communication-graph', 'children'),
         Input('agent-data-store', 'data'),
         State('metrics-data-store', 'data')
     )
     def update_communication_graph(agent_data, metrics_data):
-        """Update the communication network graph"""
+        """Update the communication network graph with real message data"""
         if not agent_data:
             return html.Div("No communication data", className="text-muted text-center p-4")
-        
+
         # Convert agent data to list format
         agents = []
         for agent_id, agent_info in agent_data.items():
             agent_info['agent_id'] = agent_id
             agents.append(agent_info)
-        
-        # Get communication history (simulated for now)
-        messages = []
-        
+
+        # Get real communication history
+        messages = list(communication_history)
+
+        # If no real messages yet, check if agents have message logs
+        if not messages and hasattr(app, 'swarm_coordinator'):
+            # Try to get message history from swarm coordinator
+            if hasattr(app.swarm_coordinator, 'message_history'):
+                messages = list(app.swarm_coordinator.message_history[-50:])  # Last 50 messages
+
         return CommunicationGraph.create(agents, messages)
-    
+
     @app.callback(
         Output('task-queue', 'children'),
         Input('task-data-store', 'data')
     )
     def update_task_queue(task_data):
-        """Update the task queue display"""
+        """Update the task queue display with real queue data"""
         if not task_data or not task_data.get("queued"):
             return html.Div("No tasks in queue", className="text-muted text-center p-4")
-        
+
         return TaskQueue.create(task_data["queued"])
-    
+
     @app.callback(
         [Output('total-agents', 'children'),
          Output('active-agents', 'children'),
@@ -183,14 +284,14 @@ def register_callbacks(app):
         """Update agent metric cards"""
         if not agent_data:
             return "0", "0", "0", "0"
-        
+
         total = len(agent_data)
         active = sum(1 for a in agent_data.values() if a.get("status") in ["busy", "processing"])
         idle = sum(1 for a in agent_data.values() if a.get("status") == "idle")
         error = sum(1 for a in agent_data.values() if a.get("status") == "error")
-        
+
         return str(total), str(active), str(idle), str(error)
-    
+
     @app.callback(
         [Output('total-tasks', 'children'),
          Output('completed-tasks', 'children'),
@@ -203,60 +304,48 @@ def register_callbacks(app):
         """Update task metric cards"""
         if not metrics_data:
             return "0", "0", "0", "0"
-        
+
         total = metrics_data.get("total_tasks", 0)
         completed = metrics_data.get("completed_tasks", 0)
         failed = metrics_data.get("failed_tasks", 0)
         in_progress = task_data.get("active", 0) if task_data else 0
-        
+
         return str(total), str(completed), str(in_progress), str(failed)
-    
+
     @app.callback(
         Output('cpu-chart', 'children'),
         Input('interval-component', 'n_intervals')
     )
     def update_cpu_chart(n):
-        """Update CPU usage chart"""
+        """Update CPU usage chart with real data"""
         import psutil
-        
+
         # Add new data point
         timestamp = datetime.now()
         cpu_value = psutil.cpu_percent(interval=0.1)
-        
+
         performance_history["timestamps"].append(timestamp)
         performance_history["cpu"].append({"timestamp": timestamp, "value": cpu_value})
-        
-        # Keep only last 60 data points (1 minute at 1s intervals)
-        if len(performance_history["cpu"]) > 60:
-            performance_history["cpu"] = performance_history["cpu"][-60:]
-            performance_history["timestamps"] = performance_history["timestamps"][-60:]
-        
-        return PerformanceChart.create_cpu_chart(performance_history["cpu"])
-    
+
+        return PerformanceChart.create_cpu_chart(list(performance_history["cpu"]))
+
     @app.callback(
         Output('memory-chart', 'children'),
         Input('interval-component', 'n_intervals')
     )
     def update_memory_chart(n):
-        """Update memory usage chart"""
+        """Update memory usage chart with real data"""
         import psutil
-        
+
         # Add new data point
         timestamp = datetime.now()
         memory = psutil.virtual_memory()
         memory_mb = memory.used / 1024 / 1024
-        
-        if "memory" not in performance_history:
-            performance_history["memory"] = []
-        
+
         performance_history["memory"].append({"timestamp": timestamp, "value": memory_mb})
-        
-        # Keep only last 60 data points
-        if len(performance_history["memory"]) > 60:
-            performance_history["memory"] = performance_history["memory"][-60:]
-        
-        return PerformanceChart.create_memory_chart(performance_history["memory"])
-    
+
+        return PerformanceChart.create_memory_chart(list(performance_history["memory"]))
+
     @app.callback(
         Output('task-completion-chart', 'children'),
         Input('task-data-store', 'data'),
@@ -271,12 +360,11 @@ def register_callbacks(app):
                 "completed": metrics_data.get("completed_tasks", 0),
                 "in_progress": task_data.get("active", 0) if task_data else 0,
                 "failed": metrics_data.get("failed_tasks", 0),
-                "queued": task_data.get("queued", []) if task_data else []
+                "queued": len(task_data.get("queued", [])) if task_data else 0
             }
-            data["queued"] = len(data["queued"]) if isinstance(data["queued"], list) else 0
-        
+
         return PerformanceChart.create_task_completion_chart(data)
-    
+
     @app.callback(
         Output('agent-utilization-chart', 'children'),
         Input('agent-data-store', 'data')
@@ -292,9 +380,9 @@ def register_callbacks(app):
                     "name": agent_info.get("name", "Unknown"),
                     "load_factor": agent_info.get("load", 0) / 100.0  # Convert percentage
                 })
-        
+
         return PerformanceChart.create_agent_utilization_chart(agents)
-    
+
     @app.callback(
         Output('create-agent-btn', 'n_clicks'),
         Input('create-agent-btn', 'n_clicks'),
@@ -303,16 +391,35 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def create_agent(n_clicks, agent_type, agent_name):
-        """Handle agent creation"""
+        """Handle agent creation with real agent manager"""
         if not n_clicks or not agent_type:
             raise PreventUpdate
-        
-        # In production, this would call the agent manager
-        logger.info(f"Creating agent: {agent_name} of type {agent_type}")
-        
+
+        try:
+            if hasattr(app, 'swarm_coordinator') and hasattr(app, 'agent_manager'):
+                # Create real agent
+                agent = app.agent_manager.create_agent(
+                    template_name=agent_type,
+                    name=agent_name or f"{agent_type}-{datetime.now().strftime('%H%M%S')}"
+                )
+
+                # Register with coordinator
+                app.swarm_coordinator.register_agent(agent)
+
+                # Log activity
+                log_activity("agent_created", f"Created agent {agent.name}", agent.id)
+
+                logger.info(f"Created agent: {agent.name} of type {agent_type}")
+            else:
+                logger.warning("Agent creation requested but no coordinator/manager available")
+
+        except Exception as e:
+            logger.error(f"Failed to create agent: {e}")
+            log_activity("agent_error", f"Failed to create agent: {str(e)}")
+
         # Reset button clicks
         return 0
-    
+
     @app.callback(
         Output('submit-task-btn', 'n_clicks'),
         Input('submit-task-btn', 'n_clicks'),
@@ -322,16 +429,39 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def submit_task(n_clicks, task_type, description, priority):
-        """Handle task submission"""
+        """Handle task submission to real swarm coordinator"""
         if not n_clicks or not task_type:
             raise PreventUpdate
-        
-        # In production, this would submit to the swarm coordinator
-        logger.info(f"Submitting task: {task_type} with priority {priority}")
-        
+
+        try:
+            if hasattr(app, 'swarm_coordinator'):
+                # Create real task
+                task = {
+                    "task_id": f"task_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    "type": task_type,
+                    "description": description or "No description provided",
+                    "priority": priority or "medium",
+                    "created_at": datetime.now(),
+                    "status": "queued"
+                }
+
+                # Submit to coordinator
+                app.swarm_coordinator.submit_task(task)
+
+                # Log activity
+                log_activity("task_submitted", f"Submitted {task_type} task", None)
+
+                logger.info(f"Submitted task: {task['task_id']} with priority {priority}")
+            else:
+                logger.warning("Task submission requested but no coordinator available")
+
+        except Exception as e:
+            logger.error(f"Failed to submit task: {e}")
+            log_activity("task_error", f"Failed to submit task: {str(e)}")
+
         # Reset button clicks
         return 0
-    
+
     @app.callback(
         Output('recent-activity', 'children'),
         Input('interval-component', 'n_intervals'),
@@ -339,28 +469,69 @@ def register_callbacks(app):
         State('task-data-store', 'data')
     )
     def update_recent_activity(n, agent_data, task_data):
-        """Update recent activity feed"""
-        # Simulate recent activity (in production, get from event log)
-        activities = [
-            html.Div([
-                html.Small(datetime.now().strftime("%H:%M:%S"), className="text-muted me-2"),
-                html.Small("Agent Alpha completed task", className="text-white")
-            ], className="mb-2"),
-            html.Div([
-                html.Small((datetime.now() - timedelta(seconds=30)).strftime("%H:%M:%S"), 
-                          className="text-muted me-2"),
-                html.Small("New task submitted", className="text-white")
-            ], className="mb-2"),
-            html.Div([
-                html.Small((datetime.now() - timedelta(seconds=60)).strftime("%H:%M:%S"), 
-                          className="text-muted me-2"),
-                html.Small("Agent Beta started", className="text-white")
-            ], className="mb-2")
-        ]
-        
-        return activities[:5]  # Show last 5 activities
-    
-    # Import necessary modules for the components
-    from dash import html
-    
+        """Update recent activity feed with real events"""
+        activities = []
+
+        # Get last 10 activities from the activity log
+        recent_activities = list(activity_log)[-10:]
+
+        for activity in reversed(recent_activities):
+            time_str = activity["timestamp"].strftime("%H:%M:%S")
+            activity_type = activity["type"]
+            description = activity["description"]
+
+            # Style based on activity type
+            if "error" in activity_type:
+                style = "text-danger"
+            elif "created" in activity_type:
+                style = "text-success"
+            elif "completed" in activity_type:
+                style = "text-info"
+            else:
+                style = "text-white"
+
+            activities.append(
+                html.Div([
+                    html.Small(time_str, className="text-muted me-2"),
+                    html.Small(description, className=style)
+                ], className="mb-2")
+            )
+
+        # If no activities, show a message
+        if not activities:
+            activities.append(
+                html.Div(
+                    html.Small("No recent activity", className="text-muted"),
+                    className="text-center p-3"
+                )
+            )
+
+        return activities
+
+    # Add hook for swarm coordinator events
+    if hasattr(app, 'swarm_coordinator'):
+        # Register event handlers
+        def on_agent_status_change(agent_id, old_status, new_status):
+            log_activity("agent_status", f"Agent {agent_id} changed from {old_status} to {new_status}", agent_id)
+
+        def on_task_completed(task_id, agent_id, success):
+            status = "completed" if success else "failed"
+            log_activity(f"task_{status}", f"Task {task_id} {status} by agent {agent_id}", agent_id)
+
+        def on_message_sent(from_agent, to_agent, message_type):
+            communication_history.append({
+                "from": from_agent,
+                "to": to_agent,
+                "type": message_type,
+                "timestamp": datetime.now()
+            })
+
+        # Register handlers if coordinator supports events
+        if hasattr(app.swarm_coordinator, 'on_agent_status_change'):
+            app.swarm_coordinator.on_agent_status_change = on_agent_status_change
+        if hasattr(app.swarm_coordinator, 'on_task_completed'):
+            app.swarm_coordinator.on_task_completed = on_task_completed
+        if hasattr(app.swarm_coordinator, 'on_message_sent'):
+            app.swarm_coordinator.on_message_sent = on_message_sent
+
     return app

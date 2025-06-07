@@ -41,6 +41,12 @@ class Configuration:
             "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY")
         }
 
+        # Auto-prompt configuration
+        self.auto_prompt_enabled = os.getenv("AUTO_PROMPT_ENABLED", "false").lower() == "true"
+        self.auto_prompt_max_iterations = int(os.getenv("AUTO_PROMPT_MAX_ITERATIONS", "1"))
+        self.auto_prompt_goal_detection = os.getenv("AUTO_PROMPT_GOAL_DETECTION", "true").lower() == "true"
+        self.auto_prompt_save_state = os.getenv("AUTO_PROMPT_SAVE_STATE", "true").lower() == "true"
+
     @staticmethod
     def load_env() -> None:
         """Load environment variables from .env file."""

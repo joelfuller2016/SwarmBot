@@ -1,0 +1,17 @@
+# SwarmBot Environment Configuration Update
+# Add these lines to your .env file for auto-prompt functionality
+
+# Auto-prompt configuration
+AUTO_PROMPT_ENABLED=true
+AUTO_PROMPT_MAX_ITERATIONS=5
+AUTO_PROMPT_GOAL_DETECTION=true
+AUTO_PROMPT_SAVE_STATE=true
+
+# Additional configuration (if not already present)
+LLM_PROVIDER=openai
+LOG_LEVEL=INFO
+LOG_TO_FILE=true
+LOG_TO_CONSOLE=true
+LOG_DIR=logs
+CHAT_DB_PATH=swarmbot_chats.db
+CHAT_DB_RETENTION_DAYS=30

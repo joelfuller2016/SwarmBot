@@ -6,12 +6,14 @@ Includes automatic tool selection and execution capabilities
 import json
 import logging
 from typing import List, Dict, Any, Tuple
+import asyncio
 
 from .chat_session import ChatSession
 from .server import Server
 from .tool import Tool
 from .llm_client import LLMClient
 from .tool_matcher import ToolMatcher, ToolMatch
+from .core.auto_prompt import AutoPromptSystem
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,27 @@ class EnhancedChatSession(ChatSession):
         self.tool_matcher = ToolMatcher()
         self.auto_mode = True  # Enable automatic tool execution by default
         self.tool_chain_limit = 5  # Maximum tools to chain in one request
+        
+        # Initialize auto-prompt system based on configuration
+        self.auto_prompt_system = None
+        self.auto_prompt_enabled = False
+        self.auto_prompt_iterations = 0
+        self.max_auto_prompt_iterations = 1
+        self.auto_prompt_goal_detection = True
+        self.auto_prompt_save_state = True
+        
+        # Check if any server has auto-prompt configuration
+        if servers and hasattr(servers[0], 'config'):
+            config = servers[0].config
+            if hasattr(config, 'auto_prompt_enabled'):
+                self.auto_prompt_enabled = config.auto_prompt_enabled
+                self.max_auto_prompt_iterations = config.auto_prompt_max_iterations
+                self.auto_prompt_goal_detection = config.auto_prompt_goal_detection
+                self.auto_prompt_save_state = config.auto_prompt_save_state
+                
+                if self.auto_prompt_enabled:
+                    self.auto_prompt_system = AutoPromptSystem()
+                    logger.info(f"Auto-prompt system initialized (max iterations: {self.max_auto_prompt_iterations})")
     
     def build_enhanced_system_prompt(self) -> str:
         """Build an enhanced system prompt that encourages automatic tool use."""
@@ -331,6 +354,8 @@ Remember: Be proactive, intelligent, and helpful!"""
             
             print(f"\n✅ Initialized with {len(self.active_servers)} servers and {len(self.all_tools)} tools")
             print(f"🤖 Automatic tool execution: {'ENABLED' if self.auto_mode else 'DISABLED'}")
+            if self.auto_prompt_enabled:
+                print(f"🔄 Auto-prompt: ENABLED (max {self.max_auto_prompt_iterations} iterations)")
             print("\n💡 Tips:")
             print("  - Just describe what you want, and I'll use the right tools")
             print("  - Type 'manual' to toggle automatic mode")
@@ -368,6 +393,9 @@ Remember: Be proactive, intelligent, and helpful!"""
                     if user_input.lower() == 'tools':
                         self.show_categorized_tools()
                         continue
+                    
+                    # Reset auto-prompt counter for new user input
+                    self.auto_prompt_iterations = 0
                     
                     # Add user message
                     self.conversation_history.append({"role": "user", "content": user_input})
@@ -411,10 +439,20 @@ Remember: Be proactive, intelligent, and helpful!"""
                         summary = self.llm_client.get_response(summary_prompt)
                         print(f"\n💬 {summary}")
                         self.conversation_history.append({"role": "assistant", "content": summary})
+                        
+                        # Check for auto-prompt after tool execution
+                        if await self.handle_auto_prompt(summary):
+                            # Auto-prompt triggered - continue the loop
+                            continue
                     else:
                         # Regular response
                         print(llm_response)
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
+                        
+                        # Check for auto-prompt
+                        if await self.handle_auto_prompt(llm_response):
+                            # Auto-prompt triggered - continue the loop with the new prompt
+                            continue
                 
                 except KeyboardInterrupt:
                     print("\n\n⚠️  Interrupted. Type 'quit' to exit properly.")
@@ -425,6 +463,126 @@ Remember: Be proactive, intelligent, and helpful!"""
         finally:
             await self.cleanup_servers()
     
+    def detect_incomplete_goal(self, response: str) -> bool:
+        """Detect if the response indicates an incomplete goal or task."""
+        if not self.auto_prompt_goal_detection:
+            return False
+        
+        # Normalize response for checking
+        response_lower = response.lower()
+        
+        # Indicators that suggest more work is needed
+        continuation_indicators = [
+            # Direct indicators
+            "next step", "then we need to", "after that", "following this",
+            "additionally", "furthermore", "let me continue", "continuing with",
+            
+            # Task progression indicators  
+            "step 1", "step 2", "first,", "second,", "third,", "finally,",
+            "to begin", "to start", "starting with", "beginning with",
+            
+            # Incomplete action indicators
+            "i'll need to", "i need to", "we should", "we need to",
+            "let's proceed", "now let's", "now we can", "next, we",
+            
+            # Planning indicators
+            "here's the plan", "here's what we'll do", "the process will be",
+            "this involves", "we'll start by", "the approach is",
+            
+            # Continuation questions
+            "shall i continue?", "should i proceed?", "would you like me to continue?",
+            "ready to proceed?", "shall we move forward?"
+        ]
+        
+        # Check for explicit completion indicators (negative signals)
+        completion_indicators = [
+            "task completed", "all done", "finished", "that's everything",
+            "process complete", "successfully completed", "work is done",
+            "nothing more to do", "that covers everything", "all set"
+        ]
+        
+        # Strong completion signals override continuation
+        for indicator in completion_indicators:
+            if indicator in response_lower:
+                return False
+        
+        # Check for continuation indicators
+        for indicator in continuation_indicators:
+            if indicator in response_lower:
+                logger.info(f"Auto-prompt: Detected incomplete goal - found '{indicator}'")
+                return True
+        
+        # Check for numbered lists that might indicate multi-step processes
+        import re
+        numbered_steps = re.findall(r'\b\d+\.\s+\w+', response)
+        if len(numbered_steps) >= 3:
+            logger.info("Auto-prompt: Detected multi-step process")
+            return True
+        
+        # Check if response ends with ellipsis or similar
+        if response.rstrip().endswith(('...', '…', 'etc.', 'and so on')):
+            logger.info("Auto-prompt: Detected trailing ellipsis")
+            return True
+        
+        return False
+    
+    async def generate_continuation_prompt(self, context: List[Dict[str, str]]) -> str:
+        """Generate an appropriate continuation prompt based on context."""
+        # Get the last assistant response
+        last_response = ""
+        for msg in reversed(context):
+            if msg["role"] == "assistant":
+                last_response = msg["content"]
+                break
+        
+        # Analyze what kind of continuation is needed
+        if "step" in last_response.lower() or "next" in last_response.lower():
+            return "Please continue with the next step."
+        elif "?" in last_response[-50:]:  # Question near the end
+            return "Yes, please proceed."
+        elif any(word in last_response.lower() for word in ["plan", "approach", "process"]):
+            return "Please execute this plan."
+        else:
+            return "Please continue with the task."
+    
+    async def handle_auto_prompt(self, llm_response: str) -> bool:
+        """Handle auto-prompt logic. Returns True if auto-prompt was triggered."""
+        if not self.auto_prompt_enabled or not self.auto_prompt_system:
+            return False
+        
+        # Check if we've reached the iteration limit
+        if self.auto_prompt_iterations >= self.max_auto_prompt_iterations:
+            logger.info(f"Auto-prompt: Reached maximum iterations ({self.max_auto_prompt_iterations})")
+            return False
+        
+        # Detect if goal is incomplete
+        if not self.detect_incomplete_goal(llm_response):
+            return False
+        
+        # Increment iteration counter
+        self.auto_prompt_iterations += 1
+        
+        # Generate continuation prompt
+        continuation_prompt = await self.generate_continuation_prompt(self.conversation_history)
+        
+        # Show auto-prompt indicator
+        print(f"\n🔄 [AUTO-PROMPT {self.auto_prompt_iterations}/{self.max_auto_prompt_iterations}] {continuation_prompt}")
+        
+        # Add to conversation history
+        self.conversation_history.append({"role": "user", "content": continuation_prompt})
+        
+        # Save state if enabled
+        if self.auto_prompt_save_state and self.auto_prompt_system:
+            self.auto_prompt_system.add_task({
+                'type': 'continuation',
+                'description': continuation_prompt,
+                'iteration': self.auto_prompt_iterations,
+                'context': llm_response[:500]  # Save partial context
+            })
+            self.auto_prompt_system.save_state()
+        
+        return True
+    
     def show_enhanced_help(self) -> None:
         """Show enhanced help information."""
         print("\n📚 SwarmBot Enhanced - Commands:")
@@ -432,6 +590,14 @@ Remember: Be proactive, intelligent, and helpful!"""
         print("  tools    - List tools by category")
         print("  manual   - Toggle automatic tool mode")
         print("  quit     - Exit the application")
+        
+        if self.auto_prompt_enabled:
+            print(f"\n🔄 Auto-Prompt Status:")
+            print(f"  Enabled: Yes")
+            print(f"  Max iterations: {self.max_auto_prompt_iterations}")
+            print(f"  Goal detection: {'Yes' if self.auto_prompt_goal_detection else 'No'}")
+            print(f"  State saving: {'Yes' if self.auto_prompt_save_state else 'No'}")
+        
         print("\n🎯 Automatic Tool Examples:")
         print("  'Show me all tasks' → Automatically runs get_tasks")
         print("  'Read config.json' → Automatically runs read_file")

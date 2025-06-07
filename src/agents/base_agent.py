@@ -77,6 +77,11 @@ class BaseAgent(ABC):
         self.message_queue: asyncio.Queue = asyncio.Queue()
         self.response_handlers: Dict[str, Callable] = {}
         
+        # Event callbacks for WebSocket integration
+        self.on_status_change: Optional[Callable] = None
+        self.on_task_complete: Optional[Callable] = None
+        self.on_error: Optional[Callable] = None
+        
         # Performance metrics
         self.metrics = {
             "tasks_completed": 0,
@@ -87,6 +92,31 @@ class BaseAgent(ABC):
         }
         
         logger.info(f"Agent {self.name} ({self.agent_id}) initialized with role {self.role.value}")
+    
+    def _set_status(self, new_status: AgentStatus, details: Optional[Dict] = None):
+        """Set agent status and emit change event"""
+        old_status = self.status
+        self.status = new_status
+        
+        # Emit status change event
+        if self.on_status_change and old_status != new_status:
+            try:
+                self.on_status_change(
+                    agent_id=self.agent_id,
+                    old_status=old_status.value,
+                    new_status=new_status.value,
+                    details=details
+                )
+            except Exception as e:
+                logger.error(f"Error emitting status change event: {e}")
+    
+    def set_event_callbacks(self, **callbacks):
+        """Set event callbacks for WebSocket integration"""
+        for event_name, callback in callbacks.items():
+            if hasattr(self, event_name):
+                setattr(self, event_name, callback)
+            else:
+                logger.warning(f"Unknown event callback: {event_name}")
 
     @abstractmethod
     async def process_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -117,7 +147,7 @@ class BaseAgent(ABC):
     async def start(self) -> None:
         """Start the agent's main processing loop"""
         logger.info(f"Starting agent {self.name}")
-        self.status = AgentStatus.IDLE
+        self._set_status(AgentStatus.IDLE)
         
         # Start message processing loop
         asyncio.create_task(self._message_loop())
@@ -128,7 +158,7 @@ class BaseAgent(ABC):
     async def stop(self) -> None:
         """Stop the agent gracefully"""
         logger.info(f"Stopping agent {self.name}")
-        self.status = AgentStatus.OFFLINE
+        self._set_status(AgentStatus.OFFLINE)
         
         # Clear message queue
         while not self.message_queue.empty():
@@ -148,7 +178,7 @@ class BaseAgent(ABC):
             raise RuntimeError(f"Agent {self.name} is not available for tasks (status: {self.status.value})")
         
         self.current_task = task
-        self.status = AgentStatus.PROCESSING
+        self._set_status(AgentStatus.PROCESSING, {"task_id": task.get("task_id")})
         self.last_active = datetime.now()
         
         try:
@@ -167,13 +197,36 @@ class BaseAgent(ABC):
                 "processing_time": processing_time
             })
             
+            # Emit task complete event
+            if self.on_task_complete:
+                try:
+                    self.on_task_complete(
+                        agent_id=self.agent_id,
+                        task_id=task.get("task_id"),
+                        result=result
+                    )
+                except Exception as e:
+                    logger.error(f"Error emitting task complete event: {e}")
+            
             self.current_task = None
-            self.status = AgentStatus.IDLE
+            self._set_status(AgentStatus.IDLE)
             
         except Exception as e:
             logger.error(f"Agent {self.name} failed to process task: {e}")
             self._update_metrics(success=False)
-            self.status = AgentStatus.ERROR
+            self._set_status(AgentStatus.ERROR, {"error": str(e)})
+            
+            # Emit error event
+            if self.on_error:
+                try:
+                    self.on_error(
+                        agent_id=self.agent_id,
+                        error=str(e),
+                        details={"task_id": task.get("task_id")}
+                    )
+                except Exception as evt_e:
+                    logger.error(f"Error emitting error event: {evt_e}")
+            
             raise
 
     async def send_message(self, recipient_id: str, message: Dict[str, Any]) -> None:
