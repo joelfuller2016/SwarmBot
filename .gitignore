@@ -1,0 +1,62 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+swarmbot.log
+swarmbot_enhanced.log
+
+# Dependency directories
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.cursor
+.roo
+.roomodes
+.windsurfrules
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Task files
+tasks.json
+tasks/
+
+# Config files with sensitive data
+servers_config_local.json
+
+# Test files
+test_*.py
+*.test.py
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+

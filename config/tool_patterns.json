@@ -1,0 +1,255 @@
+{
+  "tool_patterns": {
+    "file_operations": {
+      "read_file": {
+        "keywords": ["read", "show", "display", "view", "open", "look at", "see", "check", "cat", "type"],
+        "context": ["file", "document", "code", "content", "script", "config", "json", "txt", "py", "js"],
+        "examples": [
+          "read main.py",
+          "show me the config file",
+          "what's in test.txt",
+          "display README.md",
+          "cat package.json"
+        ],
+        "confidence_boost": 0.1
+      },
+      "write_file": {
+        "keywords": ["write", "create", "save", "make", "generate", "new file", "touch"],
+        "context": ["file", "document", "script", "code"],
+        "examples": [
+          "create a new python file",
+          "write a config.json",
+          "save this to output.txt",
+          "make a new README"
+        ]
+      },
+      "list_directory": {
+        "keywords": ["list", "show", "what's in", "contents of", "files in", "ls", "dir"],
+        "context": ["directory", "folder", "path", "current", "."],
+        "examples": [
+          "list files in the current directory",
+          "what's in the src folder",
+          "show directory contents",
+          "ls -la"
+        ]
+      },
+      "search_files": {
+        "keywords": ["find files", "locate", "where is", "search for file"],
+        "context": ["named", "called", "file", "find"],
+        "examples": [
+          "find all python files",
+          "locate config.json",
+          "where is the main script"
+        ]
+      }
+    },
+    
+    "git_operations": {
+      "git_status": {
+        "keywords": ["git status", "changes", "modified", "uncommitted", "what changed", "git st"],
+        "context": ["git", "repository", "repo", "changes"],
+        "examples": [
+          "show git status",
+          "what files have changed",
+          "git status",
+          "what's modified"
+        ],
+        "confidence_boost": 0.2
+      },
+      "git_commit": {
+        "keywords": ["commit", "save changes", "git commit"],
+        "context": ["git", "message", "changes"],
+        "examples": [
+          "commit these changes",
+          "git commit with message 'fix bug'",
+          "save changes to git"
+        ]
+      },
+      "git_diff": {
+        "keywords": ["diff", "differences", "what changed in", "compare"],
+        "context": ["git", "file", "changes"],
+        "examples": [
+          "show git diff",
+          "what changed in main.py",
+          "differences in the code"
+        ]
+      }
+    },
+    
+    "task_management": {
+      "get_tasks": {
+        "keywords": ["tasks", "todos", "show tasks", "list tasks", "what to do", "my tasks"],
+        "context": ["task", "todo", "project", "work"],
+        "examples": [
+          "show me all tasks",
+          "what tasks do I have",
+          "list my todos",
+          "display project tasks"
+        ],
+        "confidence_boost": 0.15
+      },
+      "next_task": {
+        "keywords": ["next", "what should I do", "next task", "priority", "what's next"],
+        "context": ["task", "work", "do", "next"],
+        "examples": [
+          "what's next",
+          "what should I work on",
+          "next priority task",
+          "what to do next"
+        ]
+      },
+      "set_task_status": {
+        "keywords": ["complete", "done", "finish", "mark", "update status", "task done"],
+        "context": ["task", "complete", "status"],
+        "examples": [
+          "mark task 5 as done",
+          "complete task 3",
+          "task 7 is finished",
+          "set task 2 to in-progress"
+        ]
+      },
+      "add_task": {
+        "keywords": ["add task", "new task", "create task", "add todo"],
+        "context": ["task", "new", "add"],
+        "examples": [
+          "add a new task: implement login",
+          "create task for bug fixing",
+          "new todo: update documentation"
+        ]
+      }
+    },
+    
+    "search_operations": {
+      "web_search": {
+        "keywords": ["search", "find", "look up", "google", "web", "search for", "research"],
+        "context": ["online", "internet", "web", "information", "about"],
+        "examples": [
+          "search for python tutorials",
+          "find information about AI",
+          "google machine learning",
+          "look up best practices"
+        ]
+      },
+      "search_code": {
+        "keywords": ["search code", "find in code", "grep", "look for", "find all"],
+        "context": ["code", "function", "variable", "class", "TODO", "FIXME", "import"],
+        "examples": [
+          "find all uses of calculate_total",
+          "search for TODO comments",
+          "grep for error handling",
+          "find where User class is used"
+        ],
+        "confidence_boost": 0.1
+      }
+    },
+    
+    "github_operations": {
+      "create_issue": {
+        "keywords": ["create issue", "new issue", "report bug", "github issue"],
+        "context": ["github", "issue", "bug", "feature"],
+        "examples": [
+          "create a github issue for the login bug",
+          "new issue: add dark mode",
+          "report bug about memory leak"
+        ]
+      },
+      "list_issues": {
+        "keywords": ["issues", "bugs", "show issues", "list issues"],
+        "context": ["github", "open", "closed"],
+        "examples": [
+          "show all open issues",
+          "list github issues",
+          "what bugs are reported"
+        ]
+      }
+    },
+    
+    "database_operations": {
+      "read_query": {
+        "keywords": ["select", "query", "get from database", "fetch", "retrieve"],
+        "context": ["database", "table", "records", "data"],
+        "examples": [
+          "select all users",
+          "get records from orders table",
+          "fetch customer data"
+        ]
+      }
+    },
+    
+    "analysis_tools": {
+      "sequential_thinking": {
+        "keywords": ["think about", "analyze", "reason through", "step by step"],
+        "context": ["problem", "solution", "analyze", "think"],
+        "examples": [
+          "think through this problem step by step",
+          "analyze the best approach",
+          "reason about the solution"
+        ]
+      },
+      "code_reasoning": {
+        "keywords": ["analyze code", "understand code", "explain code", "debug"],
+        "context": ["code", "function", "algorithm", "logic"],
+        "examples": [
+          "analyze this function",
+          "explain how this code works",
+          "debug the algorithm"
+        ]
+      }
+    }
+  },
+  
+  "confidence_thresholds": {
+    "auto_execute": 0.6,
+    "suggest": 0.4,
+    "ignore": 0.3
+  },
+  
+  "chaining_patterns": [
+    {
+      "pattern": "show .* and then .*",
+      "example": "show all tasks and then mark the first as done",
+      "chain_type": "sequential"
+    },
+    {
+      "pattern": "find .* and .*",
+      "example": "find all errors and fix them",
+      "chain_type": "search_and_action"
+    },
+    {
+      "pattern": "after .* then .*",
+      "example": "after committing changes then push to github",
+      "chain_type": "sequential"
+    }
+  ],
+  
+  "argument_patterns": {
+    "file_path": {
+      "patterns": [
+        "'([^']+)'",
+        "\"([^\"]+)\"",
+        "(\\S+\\.\\w+)",
+        "(?:file|path)\\s+(.+?)(?:\\s|$)"
+      ]
+    },
+    "task_id": {
+      "patterns": [
+        "task\\s+(\\d+)",
+        "#(\\d+)",
+        "number\\s+(\\d+)"
+      ]
+    },
+    "search_query": {
+      "cleanup_words": ["search for", "find", "look up", "google", "grep for"],
+      "quote_aware": true
+    },
+    "commit_message": {
+      "patterns": [
+        "'([^']+)'",
+        "\"([^\"]+)\"",
+        "message:\\s*(.+)",
+        "msg:\\s*(.+)"
+      ],
+      "default": "Update from SwarmBot"
+    }
+  }
+}
