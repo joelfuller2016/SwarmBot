@@ -2,3 +2,20 @@ python-dotenv>=1.0.0
 requests>=2.31.0
 mcp>=1.0.0
 uvicorn>=0.32.1
+
+# UI Dependencies
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+dash-extensions>=1.0.0
+plotly>=5.18.0
+networkx>=3.2
+psutil>=5.9.0
+
+# LLM Providers
+openai>=1.0.0
+anthropic>=0.7.0
+groq>=0.3.0
+
+# Utilities
+colorama>=0.4.6
+asyncio>=3.4.3
