@@ -2,15 +2,16 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Dashboard Pages](#dashboard-pages)
-3. [Settings Page](#settings-page)
-4. [Agents Page](#agents-page)
-5. [Tasks Page](#tasks-page)
-6. [Performance Analytics](#performance-analytics)
-7. [Quick Actions](#quick-actions)
-8. [System Status](#system-status)
-9. [UI Elements Reference](#ui-elements-reference)
-10. [Testing Guide](#testing-guide)
+2. [Real-Time Updates (WebSocket)](#real-time-updates-websocket)
+3. [Dashboard Pages](#dashboard-pages)
+4. [Settings Page](#settings-page)
+5. [Agents Page](#agents-page)
+6. [Tasks Page](#tasks-page)
+7. [Performance Analytics](#performance-analytics)
+8. [Quick Actions](#quick-actions)
+9. [System Status](#system-status)
+10. [UI Elements Reference](#ui-elements-reference)
+11. [Testing Guide](#testing-guide)
 
 ## Overview
 
@@ -33,6 +34,85 @@ The SwarmBot Control Center is a sophisticated web-based interface for managing 
   - Processing: #8b5cf6 (purple)
   - Error: #ef4444 (red)
   - Offline: #6b7280 (gray)
+
+## Real-Time Updates (WebSocket)
+
+The SwarmBot dashboard now features real-time WebSocket communication, replacing the previous 1-second polling mechanism. This provides instant updates across all connected clients with minimal latency.
+
+### WebSocket Connection Status Indicator
+Located in the bottom-right corner of the screen:
+- **Connected** (Green): WebSocket connection active
+- **Connecting** (Orange): Establishing connection
+- **Disconnected** (Red): No active connection
+- **Fallback Mode** (Yellow): Using polling due to connection issues
+
+### Real-Time Features
+1. **Instant Agent Updates**
+   - Status changes appear immediately (< 50ms)
+   - New agent creation visible to all users instantly
+   - Agent deletion synchronized across clients
+
+2. **Live Task Tracking**
+   - Task queue updates in real-time
+   - Assignment notifications instant
+   - Completion/failure alerts immediate
+
+3. **Performance Metrics Streaming**
+   - CPU/Memory graphs update continuously
+   - No refresh delays or data gaps
+   - Smooth chart animations
+
+4. **Multi-Client Synchronization**
+   - All dashboards see the same data simultaneously
+   - No refresh button needed
+   - Collaborative monitoring enabled
+
+### Event Batching
+For high-frequency updates, events are intelligently batched:
+- **Agent Updates**: 200ms batching window
+- **Metrics**: 500ms batching window
+- **Logs**: 1-second batching window
+- **Critical Events**: No batching (immediate)
+
+### Connection Resilience
+The WebSocket implementation includes robust failover mechanisms:
+
+1. **Automatic Reconnection**
+   - Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s
+   - Infinite retry attempts
+   - Connection state preserved
+
+2. **Message Queuing**
+   - Up to 1000 events queued during disconnection
+   - Automatic replay on reconnection
+   - No data loss during brief outages
+
+3. **Fallback to Polling**
+   - Activates after 5 failed connection attempts
+   - Seamless transition with no user action required
+   - Visual indicator shows fallback mode
+
+4. **Adaptive Behavior**
+   - Adjusts update frequency based on connection quality
+   - Reduces load during poor connectivity
+   - Optimizes for best user experience
+
+### Browser Console Monitoring
+For debugging, open browser console (F12) to see:
+```javascript
+// WebSocket connection logs
+WebSocket connected
+WebSocket reconnecting (attempt 1)
+WebSocket reconnected
+
+// Event reception logs
+Received agent_update_batch: 5 events
+Received task_completed event
+
+// Connection quality metrics
+Connection latency: 25ms
+Quality score: 95/100
+```
 
 ## Dashboard Pages
 
@@ -324,9 +404,11 @@ Displayed in the left sidebar below Quick Actions:
 3. **Real-time Update Test**
    ```
    1. Open dashboard in multiple browsers
-   2. Create agent in one browser
-   3. Verify update appears in all browsers
-   4. Submit task and monitor distribution
+   2. Check WebSocket status indicator (bottom-right)
+   3. Create agent in one browser
+   4. Verify update appears in all browsers instantly
+   5. Submit task and monitor real-time distribution
+   6. Disconnect network briefly and verify reconnection
    ```
 
 4. **Performance Monitoring Test**
@@ -373,14 +455,21 @@ Displayed in the left sidebar below Quick Actions:
    - Monitor UI responsiveness
    
 2. **Real-time Data Test**
-   - Enable auto-refresh
-   - Monitor update frequency
-   - Check data consistency
+   - Monitor WebSocket connection stability
+   - Verify < 50ms update latency
+   - Check event batching efficiency
+   - Test with 10+ simultaneous clients
    
 3. **Memory Leak Test**
    - Run dashboard for extended period
    - Monitor browser memory usage
    - Verify cleanup on page changes
+
+4. **WebSocket Stress Test**
+   - Rapidly create/delete agents
+   - Submit burst of 1000+ events
+   - Monitor connection quality score
+   - Verify no event loss during reconnection
 
 ## Troubleshooting
 
@@ -394,12 +483,15 @@ Displayed in the left sidebar below Quick Actions:
 2. **No Data Displayed**
    - Verify SwarmBot core is running
    - Check agent infrastructure exists
-   - Confirm WebSocket connection
+   - Confirm WebSocket connection (check status indicator)
+   - Open browser console for connection errors
 
-3. **Slow Updates**
-   - Adjust update interval in settings
-   - Check system resources
-   - Reduce number of active agents
+3. **Slow Updates or Using Fallback Mode**
+   - Check WebSocket status indicator
+   - Verify firewall allows WebSocket connections
+   - Check proxy configuration for WebSocket support
+   - Try different browser or disable extensions
+   - Monitor browser console for errors
 
 4. **Chart Rendering Issues**
    - Clear browser cache
@@ -422,7 +514,7 @@ python swarmbot.py --ui --debug
    - Mobile app companion
 
 2. **Performance Improvements**
-   - WebSocket implementation
+   - ~~WebSocket implementation~~ ✅ **Completed June 2025**
    - Data caching layer
    - Lazy loading for large datasets
    - GPU acceleration for graphs
@@ -435,7 +527,8 @@ python swarmbot.py --ui --debug
 
 ## Conclusion
 
-The SwarmBot Control Center provides a comprehensive interface for managing AI agent swarms. While currently displaying simulated data, the UI framework is fully functional and ready for integration with real agent systems. Regular testing and monitoring ensure optimal performance and user experience.
+The SwarmBot Control Center provides a comprehensive interface for managing AI agent swarms with real-time WebSocket communication. The dashboard delivers instant updates with minimal latency, enabling efficient monitoring and control of complex multi-agent systems. Regular testing and monitoring ensure optimal performance and user experience.
 
 For technical implementation details, see `UI_IMPLEMENTATION_REQUIREMENTS.md`.
 For development roadmap, see `UI_IMPLEMENTATION_ROADMAP.md`.
+For WebSocket deployment guide, see `WEBSOCKET_DEPLOYMENT_GUIDE.md`.

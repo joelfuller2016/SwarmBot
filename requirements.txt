@@ -10,7 +10,14 @@ dash-extensions>=1.0.0
 plotly>=5.18.0
 networkx>=3.2
 psutil>=5.9.0
-flask-socketio>=5.3.0  # For WebSocket support (Task #21)
+
+# WebSocket Dependencies (Task #21 & #35)
+flask>=2.3.0
+flask-socketio>=5.3.0
+python-socketio>=5.10.0
+python-engineio>=4.8.0
+eventlet>=0.33.0  # Async mode for SocketIO
+dnspython>=2.4.0  # Required by eventlet
 
 # LLM Providers
 openai>=1.0.0
@@ -21,3 +28,8 @@ groq>=0.3.0
 colorama>=0.4.6
 asyncio>=3.4.3
 jsonschema>=4.0.0
+
+# Testing Dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+coverage>=7.3.0
