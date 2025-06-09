@@ -18,7 +18,6 @@ from .components import (
     CommunicationGraph,
     PerformanceChart
 )
-from .callbacks import register_callbacks
 
 __all__ = [
     'create_app',
@@ -32,6 +31,5 @@ __all__ = [
     'TaskQueue',
     'SwarmMetrics',
     'CommunicationGraph',
-    'PerformanceChart',
-    'register_callbacks'
+    'PerformanceChart'
 ]

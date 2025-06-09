@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 # Suppress resource warnings on Windows
 if sys.platform == 'win32':
     warnings.filterwarnings("ignore", category=ResourceWarning)

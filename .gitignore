@@ -60,3 +60,5 @@ test_*.py
 *.bak
 *~
 
+# Deprecated files
+deprecated_launchers/
