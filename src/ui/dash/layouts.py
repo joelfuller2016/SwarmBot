@@ -23,6 +23,7 @@ def create_navbar() -> dbc.Navbar:
                         dbc.NavItem(dbc.NavLink("Agents", href="/agents")),
                         dbc.NavItem(dbc.NavLink("Tasks", href="/tasks")),
                         dbc.NavItem(dbc.NavLink("Performance", href="/performance")),
+                        dbc.NavItem(dbc.NavLink("Testing", href="/testing")),
                         dbc.NavItem(dbc.NavLink("Settings", href="/settings")),
                     ], navbar=True)
                 ], width=True),
@@ -119,6 +120,7 @@ def create_main_layout() -> html.Div:
                 dcc.Store(id='agent-data-store'),
                 dcc.Store(id='task-data-store'),
                 dcc.Store(id='metrics-data-store'),
+                dcc.Store(id='test-results-store'),
                 
                 # WebSocket stores
                 dcc.Store(id='websocket-connection-store', data={'status': 'disconnected'}),
