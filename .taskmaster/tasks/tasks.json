@@ -2619,6 +2619,82 @@
       ],
       "status": "pending",
       "subtasks": []
+    },
+    {
+      "id": 114,
+      "title": "Fix Terminal Output Formatting - \"Swarm Bot:\" Label",
+      "description": "Fix the pending line issue where the \"Swarm Bot:\" label should appear correctly in the terminal output. This involves identifying where the output formatting is broken and ensuring the bot's responses are properly prefixed with \"Swarm Bot:\" in the chat interface.",
+      "status": "done",
+      "dependencies": [
+        13
+      ],
+      "priority": "high",
+      "details": "The issue was identified in both chat_session.py and enhanced_chat_session.py where the prefix was printed separately from the response, causing them to appear disconnected. The fix involved combining the prefix with the response text to ensure they appear together consistently.",
+      "testStrategy": "Verify that all bot responses in the terminal consistently show the \"🤖 SwarmBot:\" prefix properly attached to the response text. Test both regular responses and tool results in both standard and enhanced chat sessions.",
+      "subtasks": [
+        {
+          "id": 114.1,
+          "description": "Fix formatting in chat_session.py by removing standalone prefix print and adding prefix directly to response text",
+          "status": "done",
+          "details": "- Removed the standalone print of \"🤖 SwarmBot: \" prefix\n- Added the prefix directly to regular responses: print(f\"\\n🤖 SwarmBot: {llm_response}\")\n- Improved tool result formatting: print(f\"\\n🔧 Tool Result: {result}\")"
+        },
+        {
+          "id": 114.2,
+          "description": "Fix formatting in enhanced_chat_session.py with the same approach",
+          "status": "done",
+          "details": "- Removed the standalone print of \"🤖 SwarmBot: \" prefix\n- Added the prefix directly to regular responses\n- Improved tool result formatting\n- Fixed auto-tool mode to include the SwarmBot prefix"
+        },
+        {
+          "id": 114.3,
+          "description": "Test all chat modes to verify consistent prefix display",
+          "status": "done",
+          "details": "Test regular chat, tool usage, and auto-tool mode to ensure the \"🤖 SwarmBot:\" prefix appears correctly attached to all bot responses"
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "title": "Fix Empty Error Messages",
+      "description": "CRITICAL - Start Immediately. File: src/llm_client_adapter.py. Import traceback module, replace generic exception handling with detailed logging, specifically catch concurrent.futures.TimeoutError, log full exception details including type, message, and stack trace. This will immediately reveal why the LLM calls are timing out.",
+      "details": "Changes needed:\n- Import traceback module at the top of src/llm_client_adapter.py\n- Replace generic exception handling with detailed logging\n- Specifically catch concurrent.futures.TimeoutError\n- Log full exception details including type, message, and stack trace\n- This will immediately reveal why the LLM calls are timing out",
+      "testStrategy": "",
+      "status": "done",
+      "dependencies": [],
+      "priority": "high",
+      "subtasks": []
+    },
+    {
+      "id": 116,
+      "title": "Add Database Error Logging",
+      "description": "HIGH PRIORITY. Create new error_logs table in SQLite, extend DatabaseLogger class to capture errors, include fields for correlation with chat sessions, enable querying errors by session, time, type.",
+      "details": "Implementation steps:\n- Create new error_logs table in SQLite database\n- Extend DatabaseLogger class to capture errors\n- Include fields for correlation with chat sessions\n- Enable querying errors by session, time, type\n- Add methods for error analysis and reporting",
+      "testStrategy": "",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "subtasks": []
+    },
+    {
+      "id": 117,
+      "title": "Build Log Viewer Dashboard",
+      "description": "MEDIUM PRIORITY. Create a simple web interface at /logs endpoint with search, filter, JSON formatting, export features. Use existing Flask/FastAPI setup if available. Add real-time log tailing capability.",
+      "details": "Features to implement:\n- Create a simple web interface at /logs endpoint\n- Add search functionality\n- Add filter options (by time, type, severity)\n- JSON formatting for log entries\n- Export capability (CSV, JSON)\n- Use existing Flask/FastAPI setup if available\n- Real-time log tailing capability using WebSockets or SSE",
+      "testStrategy": "",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "medium",
+      "subtasks": []
+    },
+    {
+      "id": 118,
+      "title": "Improve Timeout Handling",
+      "description": "MEDIUM PRIORITY. Add LLM_TIMEOUT environment variable (default 60s), implement retry logic with exponential backoff, add circuit breaker pattern for repeated failures.",
+      "details": "Implementation requirements:\n- Add LLM_TIMEOUT environment variable (default 60 seconds)\n- Implement retry logic with exponential backoff\n- Add circuit breaker pattern for repeated failures\n- Create configuration for max retries and backoff parameters\n- Add monitoring/alerting for circuit breaker trips",
+      "testStrategy": "",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "medium",
+      "subtasks": []
     }
   ]
 }

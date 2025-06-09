@@ -1,0 +1,63 @@
+{
+  "timestamp": "2025-06-09T17:25:02.951825",
+  "test_results": {
+    "imports": [
+      "\u2713 Dash UI Module",
+      "\u2713 Dash App Module",
+      "\u2713 Dash Layouts Module",
+      "\u2713 Dash Callbacks Module",
+      "\u2713 Dash Components Module",
+      "\u2713 Dash Integration Module",
+      "\u2713 Agents Module",
+      "\u2713 Base Agent Module",
+      "\u2713 Swarm Coordinator Module",
+      "\u2713 Agent Manager Module",
+      "\u2713 Communication Module",
+      "\u2713 Dash Framework",
+      "\u2713 Plotly",
+      "\u2713 Dash Bootstrap Components",
+      "\u2713 Dash Extensions",
+      "\u2713 PSUtil"
+    ],
+    "infrastructure": [
+      "\u2713 SwarmCoordinator instantiation",
+      "\u2713 SwarmCoordinator.get_swarm_status()",
+      "\u2713 AgentManager instantiation",
+      "\u2713 Configuration instantiation"
+    ],
+    "ui_components": [
+      "\u2713 Dash app creation",
+      "\u2713 App has swarm_coordinator attribute",
+      "\u2713 Navbar layout creation",
+      "\u2713 Sidebar layout creation",
+      "\u2713 Main Layout layout creation",
+      "\u2713 Agent Monitor layout creation",
+      "\u2713 Swarm Control layout creation",
+      "\u2713 Task Management layout creation",
+      "\u2713 Performance layout creation"
+    ],
+    "functionality": [
+      "\u2717 Callback registration: cannot import name 'register_callbacks' from 'src.ui.dash' (C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\SwarmBot\\src\\ui\\dash\\__init__.py)",
+      "\u2717 No SwarmCoordinator attached to app",
+      "\u2713 flask-socketio available",
+      "\u2713 All UI components available"
+    ],
+    "issues": [
+      "Callback Registration Error: cannot import name 'register_callbacks' from 'src.ui.dash' (C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\SwarmBot\\src\\ui\\dash\\__init__.py)",
+      "SwarmCoordinator not attached to Dash app"
+    ]
+  },
+  "completeness_factors": {
+    "Core Infrastructure": 0,
+    "UI Framework": 100,
+    "Real Data Integration": 0,
+    "WebSocket Support": 100,
+    "Component Library": 100
+  },
+  "overall_completeness": 60.0,
+  "summary": {
+    "total_tests": 35,
+    "passed": 31,
+    "failed": 4
+  }
+}
