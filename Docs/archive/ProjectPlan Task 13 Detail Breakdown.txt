@@ -1,0 +1,1046 @@
+Yes, here are a few important notes for whoever implements Task 13:
+
+## 🚨 Critical Implementation Notes:
+
+### 1. **Start Simple, Test Early**
+- Implement commands first (easiest to test)
+- Then context manager (most critical for functionality)
+- Finally user feedback (polish)
+
+### 2. **Database Integration Already Exists**
+- `ChatLogger` is already implemented in `src/database/chat_storage.py`
+- Just needs to be initialized in `ChatSession.start()`
+- Don't create a new logging system!
+
+### 3. **Enhanced Mode Compatibility**
+- `EnhancedChatSession` inherits from `ChatSession`
+- Any changes to base class will affect enhanced mode
+- Test both modes after implementation
+
+### 4. **Token Counting Options**
+```python
+# Option 1: Simple estimation (start with this)
+def estimate_tokens(text: str) -> int:
+    return len(text) // 4
+
+# Option 2: Accurate counting (upgrade later)
+# pip install tiktoken
+import tiktoken
+encoder = tiktoken.encoding_for_model("gpt-3.5-turbo")
+tokens = len(encoder.encode(text))
+```
+
+### 5. **Auto-Prompt System Awareness**
+- Auto-prompt is already implemented in `enhanced_chat_session.py`
+- Don't interfere with `detect_incomplete_goal()` functionality
+- Context manager should work seamlessly with auto-prompts
+
+### 6. **File Locations Summary**
+```
+CREATE:
+- src/core/commands.py
+- src/core/context_manager.py  
+- src/core/user_feedback.py
+
+MODIFY:
+- src/chat_session.py (carefully!)
+
+TEST:
+- tests/unit/test_command_parser.py
+- tests/unit/test_context_manager.py
+- tests/unit/test_user_feedback.py
+- tests/integration/test_chat_complete.py
+```
+
+### 7. **Quick Validation Test**
+After implementation, this should work:
+```python
+# In chat:
+help          # Shows all commands
+status        # Shows tokens used
+history 5     # Shows last 5 messages
+clear         # Clears screen
+```
+
+### 8. **Don't Break What's Working**
+- The basic chat loop already works
+- MCP servers and tools are functional
+- Database logging exists
+- Just filling in the gaps!
+
+## 🎯 Success Metric:
+When done, running `python swarmbot.py` should feel more polished with proper commands, context management, and friendly error messages - without breaking any existing functionality.
+
+################## implementation requirements ################
+
+# Task 13: Basic Chat Functionality Implementation - REVISED Requirements
+
+## Current Code Analysis ✅
+
+### What's Actually Working:
+1. **Basic Commands** already implemented in `chat_session.py`:
+   - `help` - Shows available commands
+   - `tools` - Lists all available tools
+   - `servers` - Shows active servers
+   - `quit/exit/q` - Exits the application
+
+2. **Existing Infrastructure**:
+   - `src/llm_client.py` uses LLMClientAdapter pattern
+   - `src/database/chat_storage.py` has comprehensive logging
+   - `src/logging_utils.py` provides custom logging configuration
+   - `src/config.py` includes auto-prompt settings
+   - Commands use simple string matching (no "/" prefix pattern)
+
+### What's Actually Missing:
+1. **No dedicated command parser** - commands are hardcoded in the main loop
+2. **No conversation context manager** - using simple list for history
+3. **No error formatting for users** - raw exceptions shown
+4. **No loading indicators** - just prints "SwarmBot: " and waits
+
+## REVISED Implementation Plan
+
+### Subtask 13.1: Command System Implementation 🎯
+
+**CREATE: `src/core/commands.py`**
+
+```python
+"""
+Command system for SwarmBot chat interface
+Follows existing pattern of simple string commands (no "/" prefix)
+"""
+
+import json
+import logging
+from typing import Dict, List, Optional, Callable, Any
+from datetime import datetime
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+class Command:
+    """Base command class"""
+    def __init__(self, name: str, description: str, handler: Callable):
+        self.name = name
+        self.description = description
+        self.handler = handler
+        self.aliases = []
+    
+    def add_alias(self, alias: str):
+        """Add an alias for this command"""
+        self.aliases.append(alias)
+        return self
+
+
+class CommandParser:
+    """
+    Command parser following SwarmBot's existing pattern.
+    Commands are simple strings without "/" prefix.
+    """
+    
+    def __init__(self):
+        self.commands: Dict[str, Command] = {}
+        self._register_default_commands()
+    
+    def _register_default_commands(self):
+        """Register default commands matching existing functionality"""
+        # Help command
+        self.register("help", "Show available commands", self._cmd_help)
+        
+        # Tools command  
+        self.register("tools", "List all available tools", self._cmd_tools)
+        
+        # Servers command
+        self.register("servers", "Show active servers", self._cmd_servers)
+        
+        # Exit commands with aliases
+        exit_cmd = Command("quit", "Exit the application", self._cmd_quit)
+        exit_cmd.add_alias("exit").add_alias("q")
+        self.commands["quit"] = exit_cmd
+        for alias in exit_cmd.aliases:
+            self.commands[alias] = exit_cmd
+        
+        # New commands to add
+        self.register("clear", "Clear the conversation display", self._cmd_clear)
+        self.register("status", "Show system status", self._cmd_status)
+        self.register("history", "Show conversation history", self._cmd_history)
+        self.register("export", "Export conversation to file", self._cmd_export)
+        self.register("reset", "Reset conversation context", self._cmd_reset)
+        self.register("version", "Show SwarmBot version", self._cmd_version)
+    
+    def register(self, name: str, description: str, handler: Callable):
+        """Register a new command"""
+        self.commands[name.lower()] = Command(name, description, handler)
+    
+    def parse(self, user_input: str, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Parse user input and execute command if found.
+        Returns command result or None if not a command.
+        """
+        input_lower = user_input.strip().lower()
+        
+        # Check if it's a command
+        if input_lower in self.commands:
+            cmd = self.commands[input_lower]
+            try:
+                return cmd.handler(user_input, context)
+            except Exception as e:
+                logger.error(f"Command '{cmd.name}' failed: {e}")
+                return {
+                    'type': 'error',
+                    'message': f"Command failed: {str(e)}"
+                }
+        
+        # Check for commands with arguments (e.g., "history 20")
+        parts = input_lower.split()
+        if parts and parts[0] in self.commands:
+            cmd = self.commands[parts[0]]
+            try:
+                return cmd.handler(user_input, context)
+            except Exception as e:
+                logger.error(f"Command '{cmd.name}' failed: {e}")
+                return {
+                    'type': 'error', 
+                    'message': f"Command failed: {str(e)}"
+                }
+        
+        return None
+    
+    # Command implementations
+    def _cmd_help(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Show help information"""
+        lines = ["\n📚 Available Commands:"]
+        
+        # Get unique commands (skip aliases)
+        seen = set()
+        for name, cmd in self.commands.items():
+            if cmd not in seen:
+                seen.add(cmd)
+                if cmd.aliases:
+                    aliases = f" (aliases: {', '.join(cmd.aliases)})"
+                else:
+                    aliases = ""
+                lines.append(f"  {cmd.name:<12} - {cmd.description}{aliases}")
+        
+        return {
+            'type': 'help',
+            'message': '\n'.join(lines)
+        }
+    
+    def _cmd_tools(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """List available tools"""
+        chat_session = context.get('chat_session')
+        if not chat_session:
+            return {'type': 'error', 'message': 'No chat session available'}
+        
+        # Delegate to existing show_tools method
+        return {
+            'type': 'delegate',
+            'method': 'show_tools'
+        }
+    
+    def _cmd_servers(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Show active servers"""
+        return {
+            'type': 'delegate',
+            'method': 'show_servers'
+        }
+    
+    def _cmd_quit(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Exit the application"""
+        return {
+            'type': 'exit',
+            'message': '\n👋 Goodbye!'
+        }
+    
+    def _cmd_clear(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Clear the screen"""
+        import os
+        os.system('cls' if os.name == 'nt' else 'clear')
+        return {
+            'type': 'clear',
+            'message': '🧹 Screen cleared'
+        }
+    
+    def _cmd_status(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Show system status"""
+        chat_session = context.get('chat_session')
+        if not chat_session:
+            return {'type': 'error', 'message': 'No chat session available'}
+        
+        lines = ["\n📊 System Status:"]
+        lines.append(f"  Active Servers: {len(chat_session.active_servers)}/{len(chat_session.servers)}")
+        lines.append(f"  Available Tools: {len(chat_session.all_tools)}")
+        lines.append(f"  Messages in History: {len(chat_session.conversation_history)}")
+        
+        # Add context manager info if available
+        if hasattr(chat_session, 'context_manager'):
+            cm = chat_session.context_manager
+            lines.append(f"  Context Window: {cm.current_tokens}/{cm.max_tokens} tokens")
+        
+        return {
+            'type': 'status',
+            'message': '\n'.join(lines)
+        }
+    
+    def _cmd_history(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Show conversation history"""
+        chat_session = context.get('chat_session')
+        if not chat_session:
+            return {'type': 'error', 'message': 'No chat session available'}
+        
+        # Parse count from input
+        parts = user_input.split()
+        count = 10  # default
+        if len(parts) > 1 and parts[1].isdigit():
+            count = int(parts[1])
+        
+        history = chat_session.conversation_history[-count:]
+        lines = [f"\n📜 Last {min(count, len(history))} messages:"]
+        
+        for msg in history:
+            role = msg['role'].upper()
+            content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
+            lines.append(f"\n[{role}]: {content}")
+        
+        return {
+            'type': 'history',
+            'message': '\n'.join(lines)
+        }
+    
+    def _cmd_export(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Export conversation"""
+        chat_session = context.get('chat_session')
+        if not chat_session:
+            return {'type': 'error', 'message': 'No chat session available'}
+        
+        # Parse filename from input
+        parts = user_input.split()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"conversation_{timestamp}.json" if len(parts) < 2 else parts[1]
+        
+        try:
+            data = {
+                'timestamp': timestamp,
+                'messages': chat_session.conversation_history,
+                'server_count': len(chat_session.active_servers),
+                'tool_count': len(chat_session.all_tools)
+            }
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            return {
+                'type': 'export',
+                'message': f'💾 Conversation exported to {filename}'
+            }
+        except Exception as e:
+            return {
+                'type': 'error',
+                'message': f'Export failed: {str(e)}'
+            }
+    
+    def _cmd_reset(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Reset conversation context"""
+        return {
+            'type': 'reset',
+            'message': '🔄 Conversation context will be reset. Type "confirm" to proceed.'
+        }
+    
+    def _cmd_version(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Show version information"""
+        return {
+            'type': 'version',
+            'message': '\n🤖 SwarmBot v0.1.0\nAI Assistant with MCP Tools\n'
+        }
+```
+
+### Subtask 13.2: Conversation Context Manager 🧠
+
+**CREATE: `src/core/context_manager.py`**
+
+```python
+"""
+Conversation context management for SwarmBot
+Handles message history, token counting, and context window optimization
+"""
+
+import logging
+from collections import deque
+from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
+import json
+
+logger = logging.getLogger(__name__)
+
+# Simple token estimation (can be replaced with tiktoken)
+def estimate_tokens(text: str) -> int:
+    """Simple token estimation - ~4 chars per token"""
+    return len(text) // 4
+
+
+@dataclass
+class Message:
+    """Represents a conversation message"""
+    role: str
+    content: str
+    tokens: int
+    metadata: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, str]) -> 'Message':
+        """Create Message from dictionary"""
+        content = data['content']
+        return cls(
+            role=data['role'],
+            content=content,
+            tokens=estimate_tokens(content),
+            metadata=data.get('metadata', {})
+        )
+    
+    def to_dict(self) -> Dict[str, str]:
+        """Convert to dictionary for LLM"""
+        return {
+            'role': self.role,
+            'content': self.content
+        }
+
+
+class ConversationContext:
+    """
+    Manages conversation context with token-aware windowing.
+    Follows SwarmBot's existing patterns.
+    """
+    
+    def __init__(self, 
+                 window_size: int = 20,  # Larger default for better context
+                 max_tokens: int = 4000,
+                 preserve_system: bool = True):
+        """Initialize context manager"""
+        self.window_size = window_size
+        self.max_tokens = max_tokens
+        self.preserve_system = preserve_system
+        
+        # Use deque for efficient sliding window
+        self.messages = deque(maxlen=window_size)
+        self.system_message: Optional[Message] = None
+        self.current_tokens = 0
+    
+    def add_message(self, role: str, content: str, metadata: Optional[Dict] = None):
+        """Add a message to the context"""
+        message = Message(
+            role=role,
+            content=content,
+            tokens=estimate_tokens(content),
+            metadata=metadata or {}
+        )
+        
+        # Handle system messages specially
+        if role == 'system' and self.preserve_system:
+            self.system_message = message
+            logger.debug(f"Updated system message ({message.tokens} tokens)")
+        else:
+            self.messages.append(message)
+            logger.debug(f"Added {role} message ({message.tokens} tokens)")
+        
+        self._update_token_count()
+    
+    def get_context_for_llm(self) -> List[Dict[str, str]]:
+        """
+        Get formatted context for LLM within token limits.
+        Returns list of message dictionaries.
+        """
+        context = []
+        token_count = 0
+        
+        # Always include system message if present
+        if self.system_message and self.preserve_system:
+            context.append(self.system_message.to_dict())
+            token_count += self.system_message.tokens
+        
+        # Add messages from newest to oldest (then reverse)
+        temp_messages = []
+        for message in reversed(self.messages):
+            if token_count + message.tokens > self.max_tokens:
+                logger.info(f"Truncating context at {token_count} tokens")
+                break
+            temp_messages.append(message)
+            token_count += message.tokens
+        
+        # Reverse to maintain chronological order
+        temp_messages.reverse()
+        
+        # Convert to dict format
+        for msg in temp_messages:
+            context.append(msg.to_dict())
+        
+        logger.debug(f"Returning context with {len(context)} messages, {token_count} tokens")
+        return context
+    
+    def _update_token_count(self):
+        """Update current token count"""
+        self.current_tokens = sum(msg.tokens for msg in self.messages)
+        if self.system_message:
+            self.current_tokens += self.system_message.tokens
+    
+    def clear(self, keep_system: bool = True):
+        """Clear conversation history"""
+        self.messages.clear()
+        if not keep_system:
+            self.system_message = None
+        self._update_token_count()
+        logger.info("Conversation context cleared")
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get context summary for status display"""
+        return {
+            'message_count': len(self.messages),
+            'current_tokens': self.current_tokens,
+            'max_tokens': self.max_tokens,
+            'window_size': self.window_size,
+            'has_system_message': self.system_message is not None
+        }
+    
+    def export_history(self) -> List[Dict[str, Any]]:
+        """Export full conversation history"""
+        history = []
+        if self.system_message:
+            history.append(self.system_message.to_dict())
+        history.extend([msg.to_dict() for msg in self.messages])
+        return history
+```
+
+### Subtask 13.3: User Feedback System 💬
+
+**CREATE: `src/core/user_feedback.py`**
+
+```python
+"""
+User feedback and display utilities for SwarmBot
+Provides loading indicators, error formatting, and status displays
+"""
+
+import sys
+import time
+import threading
+from typing import Optional, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class LoadingIndicator:
+    """Simple loading indicator for CLI"""
+    
+    def __init__(self, message: str = "Thinking"):
+        self.message = message
+        self.running = False
+        self.thread = None
+        self.frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self.current_frame = 0
+    
+    def _animate(self):
+        """Animation loop"""
+        while self.running:
+            frame = self.frames[self.current_frame]
+            print(f"\r{frame} {self.message}...", end="", flush=True)
+            self.current_frame = (self.current_frame + 1) % len(self.frames)
+            time.sleep(0.1)
+    
+    def start(self):
+        """Start the loading indicator"""
+        if not self.running:
+            self.running = True
+            self.thread = threading.Thread(target=self._animate, daemon=True)
+            self.thread.start()
+    
+    def stop(self, final_message: str = ""):
+        """Stop the loading indicator"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=0.5)
+        print(f"\r{' ' * (len(self.message) + 10)}\r", end="", flush=True)
+        if final_message:
+            print(final_message)
+    
+    def __enter__(self):
+        """Context manager entry"""
+        self.start()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        self.stop()
+
+
+class ErrorFormatter:
+    """Formats errors for user-friendly display"""
+    
+    # Error message mappings
+    ERROR_MESSAGES = {
+        # Connection errors
+        "ConnectionError": "Unable to connect to AI service. Please check your internet connection.",
+        "TimeoutError": "Request timed out. The service might be busy.",
+        "SSLError": "Secure connection failed. Please check your network settings.",
+        
+        # API errors
+        "AuthenticationError": "Invalid API key. Please check your configuration.",
+        "RateLimitError": "Too many requests. Please wait a moment before trying again.",
+        "InvalidRequestError": "Invalid request format. Please try rephrasing.",
+        "QuotaExceededError": "API quota exceeded. Please check your usage limits.",
+        
+        # Model errors
+        "ContextLengthError": "Message too long. Try a shorter message.",
+        "ModelNotFoundError": "AI model not available. Please check configuration.",
+        
+        # Tool errors
+        "ToolNotFoundError": "The requested tool is not available.",
+        "ToolExecutionError": "Tool failed to execute properly.",
+        "ServerNotActiveError": "No active servers available.",
+        
+        # Generic errors
+        "ValueError": "Invalid input provided.",
+        "KeyError": "Required information missing.",
+        "Exception": "An unexpected error occurred."
+    }
+    
+    @classmethod
+    def format_error(cls, error: Exception) -> str:
+        """Format an exception into a user-friendly message"""
+        error_type = type(error).__name__
+        
+        # Check for specific error messages
+        if error_type in cls.ERROR_MESSAGES:
+            base_message = cls.ERROR_MESSAGES[error_type]
+        else:
+            # Check if it's a known error family
+            for known_type, message in cls.ERROR_MESSAGES.items():
+                if known_type in error_type:
+                    base_message = message
+                    break
+            else:
+                base_message = cls.ERROR_MESSAGES["Exception"]
+        
+        # Add specific error details if available
+        error_str = str(error)
+        if error_str and error_str != error_type:
+            # Don't repeat the error type
+            if not error_str.startswith(error_type):
+                return f"{base_message}\nDetails: {error_str}"
+        
+        return base_message
+    
+    @classmethod
+    def format_api_error(cls, status_code: int, message: str = "") -> str:
+        """Format API errors based on status code"""
+        status_messages = {
+            400: "Invalid request. Please check your input.",
+            401: "Authentication failed. Please check your API key.",
+            403: "Access denied. You don't have permission for this action.",
+            404: "Resource not found.",
+            429: "Too many requests. Please slow down.",
+            500: "Server error. Please try again later.",
+            502: "Gateway error. The service is temporarily unavailable.",
+            503: "Service unavailable. Please try again later."
+        }
+        
+        base_message = status_messages.get(
+            status_code, 
+            f"Request failed with status {status_code}"
+        )
+        
+        if message:
+            return f"{base_message}\nDetails: {message}"
+        return base_message
+
+
+class StatusDisplay:
+    """Displays status information in the chat"""
+    
+    @staticmethod
+    def format_status_line(chat_session) -> str:
+        """Format a status line for display"""
+        mode = "enhanced" if hasattr(chat_session, 'auto_mode') else "basic"
+        servers = len(chat_session.active_servers)
+        total_servers = len(chat_session.servers)
+        tools = len(chat_session.all_tools)
+        
+        # Get context info if available
+        context_info = ""
+        if hasattr(chat_session, 'context_manager'):
+            cm = chat_session.context_manager
+            tokens = cm.current_tokens
+            max_tokens = cm.max_tokens
+            context_info = f" | Context: {tokens}/{max_tokens} tokens"
+        
+        return f"[{mode.upper()} MODE] Servers: {servers}/{total_servers} | Tools: {tools}{context_info}"
+    
+    @staticmethod
+    def show_welcome(chat_session):
+        """Show welcome message with status"""
+        print("\n🚀 SwarmBot MCP Client")
+        print("=" * 60)
+        print(StatusDisplay.format_status_line(chat_session))
+        print("=" * 60)
+        print("\n💬 Type 'help' for commands, 'quit' to exit")
+```
+
+### Integration Updates to `src/chat_session.py`
+
+**MODIFY** the existing `ChatSession` class:
+
+```python
+# Add imports at the top
+from src.core.commands import CommandParser
+from src.core.context_manager import ConversationContext
+from src.core.user_feedback import LoadingIndicator, ErrorFormatter, StatusDisplay
+
+class ChatSession:
+    """Orchestrates the interaction between user, LLM, and tools."""
+
+    def __init__(self, servers: List[Server], llm_client: LLMClient) -> None:
+        # Existing initialization...
+        self.servers: List[Server] = servers
+        self.llm_client: LLMClient = llm_client
+        self.active_servers: List[Server] = []
+        self.all_tools: List[Tool] = []
+        
+        # NEW: Add command parser and context manager
+        self.command_parser = CommandParser()
+        self.context_manager = ConversationContext()
+        self.error_formatter = ErrorFormatter()
+        
+        # For database logging
+        self.db_logger = None  # Will be initialized in start()
+
+    async def start(self) -> None:
+        """Main chat session handler."""
+        # Show welcome with new status display
+        StatusDisplay.show_welcome(self)
+        
+        try:
+            # Initialize servers
+            with LoadingIndicator("Initializing servers"):
+                await self.initialize_servers()
+            
+            if not self.active_servers:
+                print("\n❌ No servers could be initialized. Exiting.")
+                return
+            
+            # Load tools
+            with LoadingIndicator("Loading tools"):
+                await self.load_tools()
+            
+            # Initialize context with system prompt
+            system_prompt = self.build_system_prompt()
+            self.context_manager.add_message("system", system_prompt)
+            
+            # Initialize database logger
+            from src.database.chat_storage import ChatDatabase, ChatLogger
+            db = ChatDatabase()
+            session_id = f"session_{int(time.time())}"
+            db.create_session(session_id, self.llm_client.provider_name)
+            self.db_logger = ChatLogger(db, session_id)
+            
+            print(f"\n✅ Ready! {StatusDisplay.format_status_line(self)}")
+            print("-" * 60)
+            
+            while True:
+                try:
+                    user_input = input("\n🧑 You: ").strip()
+                    
+                    if not user_input:
+                        continue
+                    
+                    # Check for commands first
+                    context = {'chat_session': self}
+                    command_result = self.command_parser.parse(user_input, context)
+                    
+                    if command_result:
+                        # Handle command result
+                        if command_result['type'] == 'exit':
+                            print(command_result['message'])
+                            break
+                        elif command_result['type'] == 'delegate':
+                            # Call existing method
+                            method = getattr(self, command_result['method'])
+                            method()
+                        elif command_result['type'] == 'reset':
+                            print(command_result['message'])
+                            confirm = input("🧑 You: ").strip().lower()
+                            if confirm == 'confirm':
+                                self.context_manager.clear()
+                                print("✅ Context reset successfully")
+                        else:
+                            print(command_result['message'])
+                        continue
+                    
+                    # Log user message
+                    if self.db_logger:
+                        self.db_logger.log_user_message(user_input)
+                    
+                    # Add to context
+                    self.context_manager.add_message("user", user_input)
+                    
+                    # Get LLM response with loading indicator
+                    print("\n🤖 SwarmBot: ", end="", flush=True)
+                    
+                    try:
+                        with LoadingIndicator(""):
+                            # Get context for LLM
+                            messages = self.context_manager.get_context_for_llm()
+                            llm_response = self.llm_client.get_response(messages)
+                    except Exception as e:
+                        error_msg = self.error_formatter.format_error(e)
+                        print(f"\n❌ {error_msg}")
+                        logger.error(f"LLM error: {e}", exc_info=True)
+                        continue
+                    
+                    # Process response
+                    result = await self.process_llm_response(llm_response)
+                    
+                    # Handle the response display...
+                    # (existing code for tool execution and display)
+                    
+                    # Add assistant response to context
+                    self.context_manager.add_message("assistant", result)
+                    
+                    # Log assistant response
+                    if self.db_logger:
+                        self.db_logger.log_assistant_message(result)
+                
+                except KeyboardInterrupt:
+                    print("\n\n⚠️  Use 'quit' to exit properly.")
+                except Exception as e:
+                    error_msg = self.error_formatter.format_error(e)
+                    print(f"\n❌ {error_msg}")
+                    logger.error(f"Chat loop error: {e}", exc_info=True)
+        
+        finally:
+            # End session in database
+            if self.db_logger:
+                self.db_logger.db.end_session(session_id)
+            
+            await self.cleanup_servers()
+```
+
+## Testing Requirements 🧪
+
+### Create Test Files:
+
+1. **`tests/unit/test_command_parser.py`**
+2. **`tests/unit/test_context_manager.py`**
+3. **`tests/unit/test_user_feedback.py`**
+4. **`tests/integration/test_chat_complete.py`**
+
+## Key Differences from Original Plan:
+
+1. **No "/" prefix for commands** - Following existing pattern
+2. **Commands return result dictionaries** instead of direct execution
+3. **Reuse existing methods** like `show_tools()` and `show_servers()`
+4. **Integration with existing database logging**
+5. **Simple token estimation** (can upgrade to tiktoken later)
+6. **Context manager uses deque** for efficient sliding window
+7. **Loading indicator is simple** - no complex animations
+8. **Error formatter uses class methods** for easy extension
+
+## Acceptance Criteria (Updated):
+
+- [ ] Command parser integrates seamlessly with existing chat loop
+- [ ] All commands work without "/" prefix (following existing pattern)
+- [ ] Context manager maintains conversation within token limits
+- [ ] Loading indicators show during LLM and tool calls
+- [ ] Errors display user-friendly messages
+- [ ] Database logging captures all interactions
+- [ ] Can handle 20+ message conversations
+- [ ] Tests achieve >80% coverage
+- [ ] No breaking changes to existing enhanced mode
+
+This implementation aligns with SwarmBot's existing architecture and patterns while adding the missing functionality needed to complete Task 13.
+
+
+Additonal Notes:
+
+## Implementation Prompt for Task 13: Basic Chat Functionality
+
+### 📋 Task Reference
+**Taskmaster Project Path:** `C:\Users\joelf\OneDrive\Joels Files\Documents\GitHub\SwarmBot`
+
+**Task Details:**
+- **Task ID:** 13 (Status: IN-PROGRESS)
+- **Subtask 13.1:** Implement Chat Command System (Status: PENDING)
+- **Subtask 13.2:** Implement Conversation Context Manager (Status: PENDING)
+
+### 📁 Implementation Locations
+
+**CREATE these new files:**
+```
+📁 SwarmBot/
+  📁 src/
+    📁 core/
+      📄 commands.py         (NEW - Command parser system)
+      📄 context_manager.py  (NEW - Conversation context management)
+      📄 user_feedback.py    (NEW - Loading indicators & error formatting)
+```
+
+**MODIFY this existing file:**
+```
+📁 SwarmBot/
+  📁 src/
+    📄 chat_session.py      (MODIFY - Integrate new components)
+```
+
+**CREATE test files:**
+```
+📁 SwarmBot/
+  📁 tests/
+    📁 unit/
+      📄 test_command_parser.py
+      📄 test_context_manager.py  
+      📄 test_user_feedback.py
+    📁 integration/
+      📄 test_chat_complete.py
+```
+
+### 🔍 Reference Existing Patterns
+
+**Study these existing files for patterns:**
+- `src/enhanced_chat_session.py` - See how enhanced mode extends base chat
+- `src/database/chat_storage.py` - Database logging already implemented
+- `src/config.py` - Configuration patterns
+- `src/ui/progress_indicator.py` - Example of user feedback (different context)
+- `src/ui/error_display.py` - Example of error handling (different context)
+
+### ⚡ Quick Start Commands
+
+```bash
+# Navigate to project
+cd "C:\Users\joelf\OneDrive\Joels Files\Documents\GitHub\SwarmBot"
+
+# Create core module files
+echo. > src\core\commands.py
+echo. > src\core\context_manager.py
+echo. > src\core\user_feedback.py
+
+# Run existing test to verify current functionality
+python tests\test_task_13.py
+
+# After implementation, test with
+python swarmbot.py
+```
+
+### ✅ Implementation Checklist
+
+1. [ ] Create `commands.py` with CommandParser class
+2. [ ] Create `context_manager.py` with ConversationContext class
+3. [ ] Create `user_feedback.py` with LoadingIndicator, ErrorFormatter, StatusDisplay
+4. [ ] Modify `chat_session.py` to integrate new components
+5. [ ] Write unit tests for each new module
+6. [ ] Write integration test for complete flow
+7. [ ] Test both basic and enhanced modes
+8. [ ] Verify database logging still works
+9. [ ] Update task status in taskmaster to "done"
+
+### 🎯 Success Criteria
+When complete, the chat should support commands like `help`, `status`, `history`, maintain conversation context within token limits, show loading indicators during operations, and display user-friendly error messages - all while maintaining compatibility with existing enhanced mode features.
+
+## 🔧 Final Implementation Details
+
+### 📦 Dependencies to Check
+```bash
+# These should already be installed, but verify:
+pip install python-dotenv
+pip install tiktoken  # Optional - for accurate token counting later
+
+# Already in requirements.txt:
+# - asyncio (built-in)
+# - logging (built-in)
+# - json (built-in)
+# - collections (built-in)
+```
+
+### ⚠️ Potential Gotchas
+
+1. **Windows Console Issues**
+   - SwarmBot already handles UTF-8 encoding in `app.py`
+   - Loading spinner might flicker on Windows - that's OK
+   - Clear screen command is OS-specific (already handled in example)
+
+2. **Async Context**
+   - `chat_session.py` uses `async def start()` 
+   - Loading indicators need threading (not async) to work during blocking LLM calls
+   - Don't make command handlers async - keep them simple
+
+3. **Import Paths**
+   - Use `from src.core.commands import CommandParser` not relative imports
+   - The project root is already in sys.path (handled by `swarmbot.py`)
+
+### 🎮 Test Commands Sequence
+```bash
+# Test incrementally as you build:
+
+# 1. After implementing commands.py:
+python -c "from src.core.commands import CommandParser; cp = CommandParser(); print('✓ Commands module loads')"
+
+# 2. After implementing context_manager.py:
+python -c "from src.core.context_manager import ConversationContext; cc = ConversationContext(); print('✓ Context manager loads')"
+
+# 3. After implementing user_feedback.py:
+python -c "from src.core.user_feedback import LoadingIndicator; print('✓ User feedback loads')"
+
+# 4. After modifying chat_session.py:
+python tests/test_task_13.py  # Should still pass!
+
+# 5. Final test:
+python swarmbot.py  # Try: help, status, history commands
+```
+
+### 🔄 Safe Implementation Order
+
+1. **Phase 1: Commands (Low Risk)**
+   - Implement `commands.py` 
+   - Add to `chat_session.py` with minimal changes
+   - Test commands work
+   - Commit this phase
+
+2. **Phase 2: Context Manager (Medium Risk)**
+   - Implement `context_manager.py`
+   - Replace `conversation_history` list usage
+   - Test conversation still works
+   - Commit this phase
+
+3. **Phase 3: User Feedback (Low Risk)**
+   - Implement `user_feedback.py`
+   - Add loading indicators and error formatting
+   - Pure UI enhancement - won't break functionality
+   - Commit this phase
+
+### 💬 Communication
+
+- **If blocked:** Check existing enhanced_chat_session.py for similar patterns
+- **If unclear:** The existing code in `chat_session.py` lines 200-260 shows the current flow
+- **If breaking:** Git revert to last working commit, debug the specific phase
+
+### ✅ Definition of Done
+
+```python
+# This conversation should work smoothly:
+> help                    # Shows all commands
+> status                  # Shows system stats with token count
+> tell me a joke          # Normal chat works
+🤔 Thinking...           # Loading indicator appears
+> history 3              # Shows last 3 messages
+> [trigger an error]     # User-friendly error message
+> clear                  # Screen clears
+> quit                   # Graceful exit
+```
+
+### 📊 Update Taskmaster When Complete
+```bash
+# In the project directory:
+python -m taskmaster set-task-status --id 13 --status done
+python -m taskmaster set-task-status --id 13.1 --status done  
+python -m taskmaster set-task-status --id 13.2 --status done
+```
+
+That's everything! The implementation should be straightforward following the provided code examples. Good luck! 🚀

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Quick test to verify WebSocket test fixes"""
 
 import sys

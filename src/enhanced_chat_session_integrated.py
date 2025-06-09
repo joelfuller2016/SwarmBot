@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class EnhancedChatSession(LoggingMixin):
     """Enhanced chat session with database logging and error tracking"""
 
-    def __init__(self, servers: List[Server], llm_client: LLMClient, db_path: str = "swarmbot_chats.db"):
+    def __init__(self, servers: List[Server], llm_client: LLMClient, db_path: str = "data/swarmbot_chats.db"):
         self.servers: List[Server] = servers
         self.llm_client: LLMClient = llm_client
         self.active_servers: List[Server] = []

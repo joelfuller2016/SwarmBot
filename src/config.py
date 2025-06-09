@@ -47,6 +47,9 @@ class Configuration:
         self.auto_prompt_goal_detection = os.getenv("AUTO_PROMPT_GOAL_DETECTION", "true").lower() == "true"
         self.auto_prompt_save_state = os.getenv("AUTO_PROMPT_SAVE_STATE", "true").lower() == "true"
 
+        # Context management configuration
+        self.max_context_tokens = int(os.getenv("MAX_CONTEXT_TOKENS", "4000"))
+
     @staticmethod
     def load_env() -> None:
         """Load environment variables from .env file."""

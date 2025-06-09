@@ -58,7 +58,9 @@ class SwarmBotDashboard:
         # ... (method content is correct and remains unchanged)
         try:
             server_config = self.config.load_config('config/servers_config.json')
-            for name, srv_config in server_config.get('mcpServers', {}).items():
+            # Handle both 'servers' and 'mcpServers' keys for backward compatibility
+            servers_dict = server_config.get('servers', server_config.get('mcpServers', {}))
+            for name, srv_config in servers_dict.items():
                 self.servers[name] = Server(name, srv_config, self.config)
                 logger.info(f"Configured MCP server: {name}")
         except Exception as e:

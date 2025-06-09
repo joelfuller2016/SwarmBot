@@ -1,196 +1,103 @@
 {
-  "mcpServers": {
-    "mcp-server-git": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-git"
-      ]
-    },
-    "mcp-installer": {
-      "command": "npx",
-      "args": [
-        "@anaisbetts/mcp-installer"
-      ]
-    },  
-    "desktop-commander": {
+  "servers": {
+    "filesystem": {
+      "type": "nodejs",
       "command": "npx",
       "args": [
         "-y",
-        "@wonderwhy-er/desktop-commander"
-      ]
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\SwarmBot"
+      ],
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8081,
+        "interval": 30
+      }
+    },
+    "memory": {
+      "type": "nodejs",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8082,
+        "interval": 30
+      }
+    },
+    "sequential-thinking": {
+      "type": "nodejs",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8083,
+        "interval": 30
+      }
     },
     "github": {
+      "type": "nodejs",
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-github"
       ],
-      "env": {}
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8084,
+        "interval": 30
+      }
+    },
+    "sqlite-db": {
+      "type": "python",
+      "command": "uvx",
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "./data/swarmbot.db"
+      ],
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8085,
+        "interval": 30
+      }
+    },
+    "code-reasoning": {
+      "type": "nodejs",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mettamatt/code-reasoning"
+      ],
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8086,
+        "interval": 30
+      }
     },
     "brave-search": {
+      "type": "nodejs",
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-brave-search"
       ],
-      "env": {}
-    },
-    "memory": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
-    },
-    "puppeteer": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-puppeteer"
-      ]
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
-    },
-    "everything": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-everything"
-      ]
-    },
-    "browsermcp": {
-      "command": "npx",
-      "args": [
-        "@browsermcp/mcp@latest"
-      ]
-    },
-    "mcp-server-sqlite": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-sqlite",
-        "--db-path",
-        "./test.db"
-      ]
-    },
-    "neurolorap": {
-      "command": "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\mcp-server-neurolora-p\\.venv\\Scripts\\python.exe",
-      "args": [
-        "-m",
-        "mcp_server_neurolorap"
-      ],
       "env": {
-        "PYTHONPATH": "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\mcp-server-neurolora-p\\src",
-        "PYTHONUNBUFFERED": "1",
-        "MCP_PROJECT_ROOT": "C:\\Users\\joelf\\AppData\\Local\\AnthropicClaude\\app-0.9.3"
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      },
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8087,
+        "interval": 30
       }
-    },
-    "mcp-compass": {
-      "command": "npx",
-      "args": [
-        "@liuyoshio/mcp-compass",
-        "-y"
-      ]
-    },
-    "server-win-cli": {
-      "command": "npx",
-      "args": [
-        "@simonb97/server-win-cli"
-      ]
-    },
-    "mcp-reasoner": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\mcp-reasoner\\dist\\index.js"
-      ]
-    },
-    "taskmanager": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@kazuph/mcp-taskmanager"
-      ]
-    },
-    "github-project-manager": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\mcp-github-project-manager\\build\\index.js"
-      ],
-      "env": {
-        "GITHUB_OWNER": "joelfuller2016",
-        "GITHUB_REPO": "ai-control-prompts"
-      }
-    },
-    "n8n-workflow-builder": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\n8n-workflow-builder\\build\\index.js"
-      ],
-      "env": {}
-    },
-    "mcp-npx-fetch": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@tokenizin/mcp-npx-fetch"
-      ]
-    },
-    "ElevenLabs": {
-      "command": "uvx",
-      "args": [
-        "elevenlabs-mcp"
-      ],
-      "env": {}
-    },
-    "audio-interface": {
-      "command": "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\Audio-MCP-Server\\.venv\\Scripts\\python.exe",
-      "args": [
-        "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\Audio-MCP-Server\\audio_server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "C:\\Users\\joelf\\OneDrive\\Joels Files\\Documents\\GitHub\\Audio-MCP-Server"
-      }
-    },
-    "claude-code": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "mcp-claude-code",
-        "claudecode",
-        "--allow-path",
-        "C:\\Users\\joelf\\"
-      ]
-    },
-    "ripgrep": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-ripgrep@latest"
-      ]
-    },
-    "code-reasoning": {
-      "command": "npx",
-      "args": ["-y", "@mettamatt/code-reasoning"]
-    },
-    "taskmaster-ai": {
-      "command": "npx",
-      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
-      "env": {}
-    },
-    "exa": {
-      "command": "npx",
-      "args": ["-y", "exa-mcp-server"],
-      "env": {}  
-    },  
-    "mcp-server-deep-research": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-deep-research"
-      ]
     }
   }
 }

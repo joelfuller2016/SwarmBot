@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Run sample WebSocket tests to verify fixes"""
 import unittest
 import sys

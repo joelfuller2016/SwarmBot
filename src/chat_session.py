@@ -6,11 +6,15 @@ Orchestrates the interaction between user, LLM, and tools
 import asyncio
 import json
 import logging
+import time
 from typing import List, Dict, Any
 
 from .server import Server
 from .tool import Tool
 from .llm_client import LLMClient
+from .core.commands import CommandParser
+from .core.context_manager import ConversationContext
+from .core.user_feedback import LoadingIndicator, ErrorFormatter, StatusDisplay
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +22,25 @@ logger = logging.getLogger(__name__)
 class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
-    def __init__(self, servers: List[Server], llm_client: LLMClient) -> None:
+    def __init__(self, servers: List[Server], llm_client: LLMClient, config=None) -> None:
         self.servers: List[Server] = servers
         self.llm_client: LLMClient = llm_client
         self.active_servers: List[Server] = []
         self.all_tools: List[Tool] = []
         self.conversation_history: List[Dict[str, str]] = []
+        self.config = config
+        
+        # NEW: Add command parser and context manager
+        self.command_parser = CommandParser()
+        # Pass max_context_tokens from config if available
+        if config and hasattr(config, 'max_context_tokens'):
+            self.context_manager = ConversationContext(max_tokens=config.max_context_tokens)
+        else:
+            self.context_manager = ConversationContext()
+        self.error_formatter = ErrorFormatter()
+        
+        # For database logging
+        self.db_logger = None  # Will be initialized in start()
 
     async def initialize_servers(self) -> None:
         """Initialize all configured servers."""
@@ -172,34 +189,35 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
 
     async def start(self) -> None:
         """Main chat session handler."""
-        print("\n🚀 SwarmBot MCP Client")
-        print("=" * 50)
+        # Show welcome with new status display
+        StatusDisplay.show_welcome(self)
         
         try:
             # Initialize servers
-            await self.initialize_servers()
+            with LoadingIndicator("Initializing servers"):
+                await self.initialize_servers()
             
             if not self.active_servers:
                 print("\n❌ No servers could be initialized. Exiting.")
                 return
             
             # Load tools
-            await self.load_tools()
+            with LoadingIndicator("Loading tools"):
+                await self.load_tools()
             
-            if not self.all_tools:
-                print("\n⚠️  No tools available, but continuing with conversation mode.")
+            # Initialize context with system prompt
+            system_prompt = self.build_system_prompt()
+            self.context_manager.add_message("system", system_prompt)
             
-            # Build system prompt
-            system_message = {
-                "role": "system",
-                "content": self.build_system_prompt()
-            }
+            # Initialize database logger
+            from .database.chat_storage import ChatDatabase, ChatLogger
+            db = ChatDatabase()
+            session_id = f"session_{int(time.time())}"
+            db.create_session(session_id, self.llm_client.provider_name)
+            self.db_logger = ChatLogger(db, session_id)
             
-            self.conversation_history = [system_message]
-            
-            print(f"\n✅ Initialized with {len(self.active_servers)} servers and {len(self.all_tools)} tools")
-            print("\n💬 Type 'help' for available commands, 'quit' to exit")
-            print("=" * 50)
+            print(f"\n✅ Ready! {StatusDisplay.format_status_line(self)}")
+            print("-" * 60)
             
             while True:
                 try:
@@ -208,28 +226,49 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                     if not user_input:
                         continue
                     
-                    if user_input.lower() in ['quit', 'exit', 'q']:
-                        print("\n👋 Goodbye!")
-                        break
+                    # Check for commands first
+                    context = {'chat_session': self}
+                    command_result = self.command_parser.parse(user_input, context)
                     
-                    if user_input.lower() == 'help':
-                        self.show_help()
+                    if command_result:
+                        # Handle command result
+                        if command_result['type'] == 'exit':
+                            print(command_result['message'])
+                            break
+                        elif command_result['type'] == 'delegate':
+                            # Call existing method
+                            method = getattr(self, command_result['method'])
+                            method()
+                        elif command_result['type'] == 'reset':
+                            print(command_result['message'])
+                            confirm = input("🧑 You: ").strip().lower()
+                            if confirm == 'confirm':
+                                self.context_manager.clear()
+                                print("✅ Context reset successfully")
+                        else:
+                            print(command_result['message'])
                         continue
                     
-                    if user_input.lower() == 'tools':
-                        self.show_tools()
-                        continue
+                    # Log user message
+                    if self.db_logger:
+                        self.db_logger.log_user_message(user_input)
                     
-                    if user_input.lower() == 'servers':
-                        self.show_servers()
-                        continue
+                    # Add to context
+                    self.context_manager.add_message("user", user_input)
                     
-                    # Add user message to history
-                    self.conversation_history.append({"role": "user", "content": user_input})
-                    
-                    # Get LLM response
+                    # Get LLM response with loading indicator
                     print("\n🤖 SwarmBot: ", end="", flush=True)
-                    llm_response = self.llm_client.get_response(self.conversation_history)
+                    
+                    try:
+                        with LoadingIndicator(""):
+                            # Get context for LLM
+                            messages = self.context_manager.get_context_for_llm()
+                            llm_response = self.llm_client.get_response(messages)
+                    except Exception as e:
+                        error_msg = self.error_formatter.format_error(e)
+                        print(f"\n❌ {error_msg}")
+                        logger.error(f"LLM error: {e}", exc_info=True)
+                        continue
                     
                     # Process response (check for tool calls)
                     result = await self.process_llm_response(llm_response)
@@ -238,26 +277,40 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                         # Tool was called
                         print(result)
                         
-                        # Add both to history
+                        # Add both to history and context
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
                         self.conversation_history.append({"role": "system", "content": f"Tool result: {result}"})
+                        self.context_manager.add_message("assistant", llm_response)
+                        self.context_manager.add_message("system", f"Tool result: {result}")
                         
                         # Get final response
-                        final_response = self.llm_client.get_response(self.conversation_history)
+                        messages = self.context_manager.get_context_for_llm()
+                        final_response = self.llm_client.get_response(messages)
                         print(f"\n🤖 SwarmBot: {final_response}")
                         self.conversation_history.append({"role": "assistant", "content": final_response})
+                        self.context_manager.add_message("assistant", final_response)
                     else:
                         # Regular response
                         print(llm_response)
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
+                        self.context_manager.add_message("assistant", llm_response)
+                    
+                    # Log assistant response
+                    if self.db_logger:
+                        self.db_logger.log_assistant_message(result if result != llm_response else llm_response)
                 
                 except KeyboardInterrupt:
-                    print("\n\n⚠️  Interrupted. Type 'quit' to exit properly.")
+                    print("\n\n⚠️  Use 'quit' to exit properly.")
                 except Exception as e:
-                    logger.error(f"Error in chat loop: {e}")
-                    print(f"\n❌ Error: {str(e)}")
+                    error_msg = self.error_formatter.format_error(e)
+                    print(f"\n❌ {error_msg}")
+                    logger.error(f"Chat loop error: {e}", exc_info=True)
         
         finally:
+            # End session in database
+            if self.db_logger:
+                self.db_logger.db.end_session(session_id)
+            
             await self.cleanup_servers()
 
     def show_help(self) -> None:

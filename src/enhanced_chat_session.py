@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 class EnhancedChatSession(ChatSession):
     """Enhanced chat session with automatic tool selection and execution."""
     
-    def __init__(self, servers: List[Server], llm_client: LLMClient):
-        super().__init__(servers, llm_client)
+    def __init__(self, servers: List[Server], llm_client: LLMClient, config=None):
+        super().__init__(servers, llm_client, config)
         self.tool_matcher = ToolMatcher()
         self.auto_mode = True  # Enable automatic tool execution by default
         self.tool_chain_limit = 5  # Maximum tools to chain in one request
