@@ -257,7 +257,7 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                     self.context_manager.add_message("user", user_input)
                     
                     # Get LLM response with loading indicator
-                    print("\n🤖 SwarmBot: ", end="", flush=True)
+                    
                     
                     try:
                         with LoadingIndicator(""):
@@ -275,7 +275,7 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                     
                     if result != llm_response:
                         # Tool was called
-                        print(result)
+                        print(f"\n🔧 Tool Result: {result}")
                         
                         # Add both to history and context
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
@@ -291,7 +291,7 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                         self.context_manager.add_message("assistant", final_response)
                     else:
                         # Regular response
-                        print(llm_response)
+                        print(f"\n🤖 SwarmBot: {llm_response}")
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
                         self.context_manager.add_message("assistant", llm_response)
                     
