@@ -1,0 +1,30 @@
+{
+  "migrations": [
+    {
+      "id": "001_cost_tracking_schema",
+      "description": "Create cost tracking tables for LLM API usage",
+      "date": "2025-01-06",
+      "author": "SwarmBot Team",
+      "tables_created": ["model_costs", "request_costs", "conversation_costs"],
+      "indexes_created": 9,
+      "triggers_created": 1
+    },
+    {
+      "id": "002_add_model_costs_data", 
+      "description": "Insert initial model cost data for common LLM providers",
+      "date": "2025-01-06",
+      "author": "SwarmBot Team",
+      "models_added": 18,
+      "providers": ["openai", "anthropic", "google", "groq"]
+    },
+    {
+      "id": "003_add_cost_tracking_views",
+      "description": "Add database views for common cost tracking queries",
+      "date": "2025-01-06", 
+      "author": "SwarmBot Team",
+      "views_created": ["daily_cost_summary", "conversation_cost_ranking", "model_usage_stats"]
+    }
+  ],
+  "version": "1.0.0",
+  "last_updated": "2025-01-06"
+}

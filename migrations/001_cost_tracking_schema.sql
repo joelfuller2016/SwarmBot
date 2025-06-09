@@ -1,0 +1,79 @@
+-- Migration: 001_cost_tracking_schema
+-- Description: Create cost tracking tables for LLM API usage
+-- Date: 2025-01-06
+
+BEGIN TRANSACTION;
+
+-- Create migration_log table if it doesn't exist
+CREATE TABLE IF NOT EXISTS migration_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    migration_id TEXT UNIQUE NOT NULL,
+    applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    description TEXT
+);
+
+-- Create model_costs table
+CREATE TABLE IF NOT EXISTS model_costs (
+    model_name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    input_cost_per_1k REAL NOT NULL CHECK (input_cost_per_1k >= 0),
+    output_cost_per_1k REAL NOT NULL CHECK (output_cost_per_1k >= 0),
+    context_window INTEGER NOT NULL CHECK (context_window > 0),
+    last_updated DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (model_name, provider)
+);
+
+-- Create request_costs table
+CREATE TABLE IF NOT EXISTS request_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL CHECK (input_tokens >= 0),
+    output_tokens INTEGER NOT NULL CHECK (output_tokens >= 0),
+    input_cost REAL NOT NULL CHECK (input_cost >= 0),
+    output_cost REAL NOT NULL CHECK (output_cost >= 0),
+    total_cost REAL NOT NULL CHECK (total_cost >= 0)
+);
+
+-- Create conversation_costs table
+CREATE TABLE IF NOT EXISTS conversation_costs (
+    conversation_id TEXT PRIMARY KEY,
+    start_time DATETIME NOT NULL,
+    last_update DATETIME NOT NULL,
+    total_cost REAL NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+    request_count INTEGER NOT NULL DEFAULT 0 CHECK (request_count >= 0)
+);
+
+-- Create indexes for model_costs
+CREATE INDEX IF NOT EXISTS idx_model_costs_provider ON model_costs(provider);
+CREATE INDEX IF NOT EXISTS idx_model_costs_last_updated ON model_costs(last_updated);
+
+-- Create indexes for request_costs
+CREATE INDEX IF NOT EXISTS idx_request_costs_conversation_id ON request_costs(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_request_costs_timestamp ON request_costs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_request_costs_model ON request_costs(model);
+CREATE INDEX IF NOT EXISTS idx_request_costs_conv_time ON request_costs(conversation_id, timestamp);
+
+-- Create indexes for conversation_costs
+CREATE INDEX IF NOT EXISTS idx_conversation_costs_start_time ON conversation_costs(start_time);
+CREATE INDEX IF NOT EXISTS idx_conversation_costs_last_update ON conversation_costs(last_update);
+CREATE INDEX IF NOT EXISTS idx_conversation_costs_total_cost ON conversation_costs(total_cost DESC);
+
+-- Create automatic update trigger
+CREATE TRIGGER IF NOT EXISTS update_conversation_costs_on_insert
+AFTER INSERT ON request_costs
+BEGIN
+    INSERT INTO conversation_costs (conversation_id, start_time, last_update, total_cost, request_count)
+    VALUES (NEW.conversation_id, NEW.timestamp, NEW.timestamp, NEW.total_cost, 1)
+    ON CONFLICT(conversation_id) DO UPDATE SET
+        last_update = NEW.timestamp,
+        total_cost = total_cost + NEW.total_cost,
+        request_count = request_count + 1;
+END;
+
+-- Insert migration record
+INSERT INTO migration_log (migration_id, applied_at, description)
+VALUES ('001_cost_tracking_schema', datetime('now'), 'Create cost tracking tables for LLM API usage');
+
+COMMIT;
