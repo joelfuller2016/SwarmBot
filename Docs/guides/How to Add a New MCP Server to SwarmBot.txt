@@ -1,0 +1,204 @@
+## How to Add a New MCP Server to SwarmBot
+
+Here's a step-by-step guide to add a new MCP server to the configuration:
+
+### Step 1: Edit `config/servers_config.json`
+
+Open the file and add your new server to the `servers` object. Here are two examples:
+
+#### Example 1: Adding a Node.js MCP Server
+
+```json
+{
+  "servers": {
+    // ... existing servers ...
+    
+    "my-custom-server": {
+      "type": "nodejs",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mycompany/mcp-server-custom"
+      ],
+      "env": {
+        "API_KEY": "${MY_CUSTOM_API_KEY}",
+        "BASE_URL": "https://api.myservice.com"
+      },
+      "health_check": {
+        "endpoint": "/health",
+        "port": 8088,
+        "interval": 30,
+        "timeout": 5
+      }
+    }
+  }
+}
+```
+
+#### Example 2: Adding a Python MCP Server
+
+```json
+{
+  "servers": {
+    // ... existing servers ...
+    
+    "data-analyzer": {
+      "type": "python",
+      "command": "uvx",
+      "args": [
+        "mcp-server-data-analyzer",
+        "--config", "./config/analyzer.yaml",
+        "--port", "8089"
+      ],
+      "env": {
+        "PYTHON_ENV": "production",
+        "DATABASE_URL": "${DATABASE_CONNECTION_STRING}"
+      },
+      "health_check": {
+        "endpoint": "/status",
+        "port": 8089,
+        "interval": 60
+      }
+    }
+  }
+}
+```
+
+### Step 2: Configuration Options Explained
+
+#### Required Fields:
+- **`type`**: Either `"nodejs"` or `"python"`
+- **`command`**: The command to run the server
+  - For Node.js: Usually `"npx"`, `"node"`, or `"npm"`
+  - For Python: Usually `"uvx"`, `"python"`, or `"uv"`
+- **`args`**: Array of command-line arguments
+
+#### Optional Fields:
+- **`env`**: Environment variables
+  - Use `${VARIABLE_NAME}` for values from your system environment
+  - Or hardcode values directly
+- **`health_check`**: Health monitoring configuration
+  - `endpoint`: URL path for health checks (e.g., "/health")
+  - `port`: Port number the server listens on
+  - `interval`: Seconds between health checks
+  - `timeout`: Seconds to wait for health response
+
+### Step 3: Set Environment Variables (if needed)
+
+If your server uses environment variables, add them to your `.env` file:
+
+```bash
+# .env
+MY_CUSTOM_API_KEY=your-actual-api-key-here
+DATABASE_CONNECTION_STRING=postgresql://user:pass@localhost/db
+```
+
+### Step 4: Common MCP Server Patterns
+
+#### Local File-Based Server
+```json
+"file-processor": {
+  "type": "nodejs",
+  "command": "node",
+  "args": [
+    "./custom-servers/file-processor/index.js",
+    "--watch-dir", "./data/input"
+  ]
+}
+```
+
+#### Docker-Based Server
+```json
+"docker-service": {
+  "type": "nodejs",
+  "command": "docker",
+  "args": [
+    "run", "-d",
+    "-p", "8090:8090",
+    "--name", "mcp-docker-service",
+    "mycompany/mcp-service:latest"
+  ]
+}
+```
+
+#### Server with Authentication
+```json
+"auth-server": {
+  "type": "nodejs",
+  "command": "npx",
+  "args": ["-y", "@company/secure-mcp-server"],
+  "env": {
+    "AUTH_TOKEN": "${MCP_AUTH_TOKEN}",
+    "CLIENT_ID": "${MCP_CLIENT_ID}",
+    "CLIENT_SECRET": "${MCP_CLIENT_SECRET}"
+  }
+}
+```
+
+### Step 5: Verify Your Configuration
+
+After adding your server, run the verification script:
+
+```bash
+# Windows
+scripts\check_mcp_servers.bat
+
+# Or directly
+python src/mcp/install_mcp_servers.py --verify
+```
+
+This will:
+1. Check if your JSON is valid
+2. Verify the server type is recognized
+3. Check prerequisites (Node.js/Python)
+4. Validate environment variables
+
+### Step 6: Test Your Server
+
+```bash
+# Test just your new server
+python tests/mcp/test_mcp_setup.py
+
+# Or run full test suite
+python tests/mcp/test_mcp_management.py
+```
+
+### Pro Tips:
+
+1. **Port Management**: Make sure each server uses a unique port
+2. **Naming Convention**: Use lowercase with hyphens (e.g., `my-server-name`)
+3. **Documentation**: Add a comment above your server config explaining what it does
+4. **Version Pinning**: For npx/uvx, consider pinning versions:
+   ```json
+   "args": ["-y", "@modelcontextprotocol/server-github@1.2.3"]
+   ```
+
+### Example: Adding a Real MCP Server (Perplexity Search)
+
+Here's how you might add a Perplexity search server:
+
+```json
+"perplexity-search": {
+  "type": "nodejs",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-perplexity"
+  ],
+  "env": {
+    "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+  },
+  "health_check": {
+    "endpoint": "/health",
+    "port": 8091,
+    "interval": 30
+  }
+}
+```
+
+Then add to `.env`:
+```
+PERPLEXITY_API_KEY=pplx-abc123def456...
+```
+
+That's it! Your new MCP server is now configured and ready to be managed by SwarmBot's MCP system.

@@ -1,0 +1,685 @@
+{
+  "total_tests": 60,
+  "categories": {
+    "websocket": [
+      "manual_websocket_test.py",
+      "run_websocket_test.py",
+      "test_websocket_events.py",
+      "test_websocket_integration.py",
+      "test_websocket_performance.py",
+      "test_websocket_resilience.py",
+      "test_websocket_suite.py",
+      "validate_websocket_implementation.py",
+      "verify_all_websocket_tests.py",
+      "verify_websocket_fixes.py",
+      "verify_websocket_functionality.py",
+      "archive\\test_websocket_events_old.py",
+      "archive\\test_websocket_integration_old.py",
+      "archive\\test_websocket_performance_old.py",
+      "archive\\test_websocket_resilience_old.py"
+    ],
+    "dashboard": [
+      "quick_ui_test.py",
+      "run_ui_test.py",
+      "test_dashboard.py",
+      "test_dashboard_imports.py",
+      "test_dashboard_launch.py",
+      "test_dashboard_quick.py",
+      "test_quick.py",
+      "test_ui_comprehensive.py"
+    ],
+    "fix_verification": [
+      "test_asyncio_cleanup_fix.py",
+      "test_asyncio_fix.py",
+      "test_circular_import_fix.py",
+      "test_config_key_fix.py",
+      "test_fixes.py",
+      "test_list_tools_fix.py",
+      "test_logging_fix.py",
+      "test_token_fix.py",
+      "test_tool_object_fix.py",
+      "verify_token_fix.py"
+    ],
+    "auto_prompt": [
+      "test_auto_prompt.py",
+      "test_auto_prompt_integration.py"
+    ],
+    "basic": [
+      "test_chat_basic.py",
+      "test_minimal.py",
+      "test_swarmbot_basic.py"
+    ],
+    "imports": [
+      "test_circular_import.py"
+    ],
+    "configuration": [
+      "test_config.py"
+    ],
+    "database": [
+      "test_database_no_truncation.py",
+      "unit\\test_user_feedback.py"
+    ],
+    "example": [
+      "test_dummy_example.py"
+    ],
+    "enhanced": [
+      "test_enhanced.py"
+    ],
+    "llm": [
+      "test_llm_providers.py"
+    ],
+    "setup": [
+      "test_setup.py",
+      "test_structure.py"
+    ],
+    "task": [
+      "test_task_13.py"
+    ],
+    "validation": [
+      "validate_new_features.py"
+    ],
+    "asyncio": [
+      "integration\\test_asyncio_cleanup.py"
+    ],
+    "integration": [
+      "integration\\test_chat_complete.py",
+      "integration\\__init__.py"
+    ],
+    "mcp": [
+      "mcp\\test_inventory.py",
+      "mcp\\test_mcp_management.py",
+      "mcp\\test_mcp_setup.py",
+      "mcp\\test_mcp_verification.py",
+      "mcp\\__init__.py"
+    ],
+    "unit": [
+      "unit\\test_command_parser.py",
+      "unit\\test_context_manager.py",
+      "unit\\__init__.py"
+    ]
+  },
+  "test_info": {
+    "manual_websocket_test.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import (",
+        "from src.ui.dash.app import create_app",
+        "from src.ui.dash.websocket_resilience import WebSocketResilience"
+      ]
+    },
+    "quick_ui_test.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.ui.dash.integration import SwarmBotDashboard",
+        "from src.ui.dash import create_app"
+      ]
+    },
+    "run_ui_test.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "run_websocket_test.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_asyncio_cleanup_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_asyncio_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_auto_prompt.py": {
+      "category": "auto_prompt",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.core.auto_prompt import AutoPromptSystem",
+        "from src.enhanced_chat_session import EnhancedChatSession",
+        "from src.chat_session import ChatSession"
+      ]
+    },
+    "test_auto_prompt_integration.py": {
+      "category": "auto_prompt",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.enhanced_chat_session import EnhancedChatSession",
+        "from src.core.auto_prompt import AutoPromptSystem",
+        "from src.server import Server",
+        "from src.llm_client import LLMClient",
+        "from src.core.app import SwarmBotApp",
+        "from src.core.app import SwarmBotApp",
+        "from src.core.app import SwarmBotApp"
+      ]
+    },
+    "test_chat_basic.py": {
+      "category": "basic",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.llm_client import LLMClient",
+        "from src.chat_session import ChatSession",
+        "from src.server import Server",
+        "from src.llm.client_factory import LLMClientFactory"
+      ]
+    },
+    "test_circular_import.py": {
+      "category": "imports",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp",
+        "from src.enhanced_chat_session import EnhancedChatSession",
+        "from src.core.auto_prompt import AutoPromptSystem"
+      ]
+    },
+    "test_circular_import_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp",
+        "from src.chat_session import ChatSession",
+        "from src.enhanced_chat_session import EnhancedChatSession",
+        "from src.config import Configuration"
+      ]
+    },
+    "test_config.py": {
+      "category": "configuration",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_config_key_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp"
+      ]
+    },
+    "test_dashboard.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.agents import SwarmCoordinator, AgentManager",
+        "from src.ui.dash import create_app, register_callbacks",
+        "from src.config import Configuration",
+        "from src.agents import SwarmCoordinator, AgentManager, BaseAgent",
+        "from src.ui.dash import create_app, register_callbacks",
+        "from src.agents import SwarmCoordinator"
+      ]
+    },
+    "test_dashboard_imports.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.agents import SwarmCoordinator, AgentManager",
+        "from src.ui.dash import create_app, serve_app, register_callbacks",
+        "from src.config import Configuration",
+        "from src.server import Server",
+        "from src.llm_client import LLMClient"
+      ]
+    },
+    "test_dashboard_launch.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.ui.dash import create_app, serve_app, register_callbacks",
+        "from src.agents import SwarmCoordinator, AgentManager",
+        "from src.config import Configuration",
+        "from src.ui.dash.integration import SwarmBotDashboard"
+      ]
+    },
+    "test_dashboard_quick.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.ui.dash.integration import main",
+        "from src.agents import SwarmCoordinator, AgentManager",
+        "from src.ui.dash import create_app, serve_app, register_callbacks",
+        "from src.config import Configuration",
+        "from src.server import Server",
+        "from src.llm_client import LLMClient"
+      ]
+    },
+    "test_database_no_truncation.py": {
+      "category": "database",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.database.chat_storage import ChatDatabase"
+      ]
+    },
+    "test_dummy_example.py": {
+      "category": "example",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_enhanced.py": {
+      "category": "enhanced",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_fixes.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_list_tools_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_llm_providers.py": {
+      "category": "llm",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.llm.client_factory import LLMClientFactory",
+        "from src.logging_utils import configure_logging"
+      ]
+    },
+    "test_logging_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.logging_utils import configure_logging"
+      ]
+    },
+    "test_minimal.py": {
+      "category": "basic",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_quick.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp",
+        "from src.config import Configuration",
+        "from src.core.auto_prompt import AutoPromptSystem"
+      ]
+    },
+    "test_setup.py": {
+      "category": "setup",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "test_structure.py": {
+      "category": "setup",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp"
+      ]
+    },
+    "test_swarmbot_basic.py": {
+      "category": "basic",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp"
+      ]
+    },
+    "test_task_13.py": {
+      "category": "task",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.llm_client import LLMClient",
+        "from src.chat_session import ChatSession"
+      ]
+    },
+    "test_token_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.core.context_manager import ConversationContext"
+      ]
+    },
+    "test_tool_object_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.core.app import SwarmBotApp"
+      ]
+    },
+    "test_ui_comprehensive.py": {
+      "category": "dashboard",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.agents import SwarmCoordinator",
+        "from src.agents import AgentManager",
+        "from src.config import Configuration",
+        "from src.ui.dash import create_app",
+        "from src.ui.dash.layouts import (",
+        "from src.ui.dash import register_callbacks",
+        "from src.ui.dash.components import ("
+      ]
+    },
+    "test_websocket_events.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "test_websocket_integration.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.agents import SwarmCoordinator, BaseAgent, AgentManager",
+        "from src.ui.dash.integration import SwarmBotDashboard",
+        "from src.ui.dash import create_app",
+        "from src.ui.dash.websocket_events import init_websocket_events",
+        "from src.config import Configuration",
+        "from src.ui.dash.websocket_events import emit_agent_created",
+        "from src.ui.dash.websocket_events import emit_agent_status_change",
+        "from src.ui.dash.websocket_events import (",
+        "from src.ui.dash.websocket_events import broadcast_swarm_status",
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "test_websocket_performance.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "test_websocket_resilience.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_resilience import ("
+      ]
+    },
+    "test_websocket_suite.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "validate_new_features.py": {
+      "category": "validation",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.database import ChatDatabase",
+        "from src.utils.logging_config import setup_logging, get_logger, error_tracker",
+        "from src.utils.api_validator import APIKeyValidator",
+        "from src.config import Configuration"
+      ]
+    },
+    "validate_websocket_implementation.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "verify_all_websocket_tests.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "verify_token_fix.py": {
+      "category": "fix_verification",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.config import Configuration",
+        "from src.core.context_manager import ConversationContext",
+        "from src.chat_session import ChatSession",
+        "from src.llm_client import LLMClient",
+        "from src.server import Server"
+      ]
+    },
+    "verify_websocket_fixes.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "verify_websocket_functionality.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import emit_agent_created, emit_agent_status_change",
+        "from src.ui.dash.websocket_resilience import WebSocketResilience",
+        "from src.ui.dash.integration import setup_swarm_event_handlers",
+        "from src.ui.dash.app import socketio",
+        "from src.ui.dash.app import app",
+        "from src.core.swarm_coordinator import SwarmCoordinator"
+      ]
+    },
+    "archive\\test_websocket_events_old.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "archive\\test_websocket_integration_old.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.agents import SwarmCoordinator, BaseAgent, AgentManager",
+        "from src.ui.dash.integration import SwarmBotDashboard",
+        "from src.ui.dash import create_app",
+        "from src.ui.dash.websocket_events import init_websocket_events",
+        "from src.config import Configuration",
+        "from src.ui.dash.websocket_events import emit_agent_created",
+        "from src.ui.dash.websocket_events import emit_agent_status_change",
+        "from src.ui.dash.websocket_events import (",
+        "from src.ui.dash.websocket_events import broadcast_swarm_status",
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "archive\\test_websocket_performance_old.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_events import ("
+      ]
+    },
+    "archive\\test_websocket_resilience_old.py": {
+      "category": "websocket",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.ui.dash.websocket_resilience import ("
+      ]
+    },
+    "integration\\test_asyncio_cleanup.py": {
+      "category": "asyncio",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "integration\\test_chat_complete.py": {
+      "category": "integration",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.chat_session import ChatSession",
+        "from src.core.commands import CommandParser",
+        "from src.core.context_manager import ConversationContext",
+        "from src.core.user_feedback import LoadingIndicator, ErrorFormatter, StatusDisplay"
+      ]
+    },
+    "integration\\__init__.py": {
+      "category": "integration",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "mcp\\test_inventory.py": {
+      "category": "mcp",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.mcp.server_inventory import MCPServerInventory"
+      ]
+    },
+    "mcp\\test_mcp_management.py": {
+      "category": "mcp",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": [
+        "from src.mcp import ("
+      ]
+    },
+    "mcp\\test_mcp_setup.py": {
+      "category": "mcp",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "mcp\\test_mcp_verification.py": {
+      "category": "mcp",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "mcp\\__init__.py": {
+      "category": "mcp",
+      "has_docstring": true,
+      "docstring": "MCP Server Tests\nTests for the MCP server management system",
+      "likely_working": null,
+      "dependencies": []
+    },
+    "unit\\test_command_parser.py": {
+      "category": "unit",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.core.commands import CommandParser, Command"
+      ]
+    },
+    "unit\\test_context_manager.py": {
+      "category": "unit",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.core.context_manager import ConversationContext, Message, estimate_tokens"
+      ]
+    },
+    "unit\\test_user_feedback.py": {
+      "category": "database",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": true,
+      "dependencies": [
+        "from src.core.user_feedback import LoadingIndicator, ErrorFormatter, StatusDisplay"
+      ]
+    },
+    "unit\\__init__.py": {
+      "category": "unit",
+      "has_docstring": false,
+      "docstring": "",
+      "likely_working": null,
+      "dependencies": []
+    }
+  }
+}

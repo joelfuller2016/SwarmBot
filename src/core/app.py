@@ -10,6 +10,7 @@ import sys
 import os
 import warnings
 import argparse
+import signal
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
@@ -27,7 +28,7 @@ if sys.platform == 'win32':
 # Import from src modules
 from src.config import Configuration
 from src.server import Server
-from src.chat_session import ChatSession
+
 from src.llm_client import LLMClient
 from src.logging_utils import configure_logging
 
@@ -41,6 +42,8 @@ class SwarmBotApp:
         self.servers = []
         self.logger = None
         self.mode = 'enhanced'  # Default mode
+        self.shutdown_event = asyncio.Event()
+        self.chat_session = None
         
     def setup_environment(self):
         """Set up the environment for proper execution"""
@@ -50,6 +53,28 @@ class SwarmBotApp:
         # Set up proper asyncio event loop policy for Windows
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    
+    def setup_signal_handlers(self):
+        """Set up signal handlers for graceful shutdown"""
+        def signal_handler(signum, frame):
+            print("\n[INFO] Received shutdown signal, cleaning up...")
+            self.shutdown_event.set()
+            # If we have a chat session, notify it
+            if hasattr(self, 'chat_session') and self.chat_session:
+                # Set a flag that the chat session can check
+                self.chat_session._shutdown_requested = True
+        
+        # Register signal handlers
+        if sys.platform == 'win32':
+            # Windows signal handling
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+            # Windows doesn't have SIGQUIT
+        else:
+            # Unix-like signal handling
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGQUIT, signal_handler)
     
     def parse_arguments(self, args: List[str]) -> argparse.Namespace:
         """Parse command line arguments"""
@@ -211,7 +236,14 @@ Examples:
             print("=" * 60)
             
             # Create servers temporarily to get tool lists
-            for name, srv_config in server_config['mcpServers'].items():
+            # Handle both 'servers' and 'mcpServers' keys for backward compatibility
+            servers_dict = server_config.get('servers', server_config.get('mcpServers', {}))
+            
+            if not servers_dict:
+                print("[WARNING] No servers configured in servers_config.json")
+                return 0
+            
+            for name, srv_config in servers_dict.items():
                 try:
                     server = Server(name, srv_config, self.config)
                     await server.initialize()
@@ -220,7 +252,7 @@ Examples:
                     if tools:
                         print(f"\n[{name}] ({len(tools)} tools):")
                         for tool in tools:
-                            print(f"  - {tool['name']}: {tool.get('description', 'No description')}")
+                            print(f"  - {tool.name}: {tool.description}")
                     else:
                         print(f"\n[{name}]: No tools available")
                     
@@ -228,16 +260,98 @@ Examples:
                 except Exception as e:
                     print(f"\n[{name}]: Failed to initialize - {e}")
             
+            # Give Windows ProactorEventLoop time to clean up transports
+            if sys.platform == 'win32':
+                await asyncio.sleep(0.5)
+            
             return 0
             
         except Exception as e:
             print(f"\n[ERROR] Failed to list tools: {e}")
             return 1
     
+    async def _cleanup_event_loop(self, loop) -> None:
+        """Comprehensive cleanup of event loop resources to prevent asyncio errors on Windows."""
+        # First, cleanup all servers (this handles subprocesses)
+        if hasattr(self, 'servers') and self.servers:
+            cleanup_tasks = []
+            for server in self.servers:
+                if hasattr(server, 'cleanup'):
+                    cleanup_tasks.append(server.cleanup())
+            
+            if cleanup_tasks:
+                try:
+                    # Give servers time to cleanup with a reasonable timeout
+                    await asyncio.wait_for(
+                        asyncio.gather(*cleanup_tasks, return_exceptions=True),
+                        timeout=10.0
+                    )
+                except asyncio.TimeoutError:
+                    print("[WARNING] Server cleanup timed out")
+                except Exception as e:
+                    print(f"[WARNING] Error during server cleanup: {e}")
+        
+        # Cancel all remaining tasks
+        try:
+            # Get all pending tasks
+            try:
+                pending = asyncio.all_tasks(loop)
+            except AttributeError:
+                # Python 3.6 compatibility
+                pending = asyncio.Task.all_tasks(loop)
+            
+            # Cancel them
+            for task in pending:
+                if not task.done() and task != asyncio.current_task():
+                    task.cancel()
+            
+            # Wait for all tasks to complete cancellation
+            if pending:
+                await asyncio.wait(pending, timeout=5.0)
+        except Exception as e:
+            if hasattr(self, 'logger') and self.logger:
+                self.logger.debug(f"Error cancelling tasks: {e}")
+            else:
+                print(f"[DEBUG] Error cancelling tasks: {e}")
+
+        # Special handling for Windows ProactorEventLoop
+        if sys.platform == 'win32':
+            # Give time for subprocess transports to close properly
+            await asyncio.sleep(0.5)
+            
+            # Force cleanup of any remaining transports
+            if hasattr(loop, '_transports'):
+                transports = list(loop._transports)
+                for transport in transports:
+                    try:
+                        transport.close()
+                    except Exception:
+                        pass
+            
+            # Additional sleep to ensure all I/O operations complete
+            await asyncio.sleep(0.2)
+        
+        # Final cleanup of any remaining tasks
+        try:
+            # Get remaining tasks one more time
+            try:
+                remaining = [t for t in asyncio.all_tasks(loop) if not t.done() and t != asyncio.current_task()]
+            except AttributeError:
+                remaining = [t for t in asyncio.Task.all_tasks(loop) if not t.done()]
+            
+            if remaining:
+                for task in remaining:
+                    task.cancel()
+                await asyncio.wait(remaining, timeout=2.0)
+        except Exception:
+            pass
+
     async def run_chat_session(self, mode: str, args: argparse.Namespace) -> None:
         """Run the main chat session"""
+        from src.chat_session import ChatSession
+        
         # Configure logging based on mode
-        log_file = 'swarmbot.log' if mode == 'standard' else 'swarmbot_enhanced.log'
+        log_file = 'logs/swarmbot.log' if mode == 'standard' else 'logs/swarmbot_enhanced.log'
         self.logger = configure_logging(log_file)
         
         try:
@@ -259,7 +373,10 @@ Examples:
 
             # Create servers
             self.servers = []
-            for name, srv_config in server_config['mcpServers'].items():
+            # Handle both 'servers' and 'mcpServers' keys for backward compatibility
+            servers_dict = server_config.get('servers', server_config.get('mcpServers', {}))
+            
+            for name, srv_config in servers_dict.items():
                 self.servers.append(Server(name, srv_config, self.config))
 
             # Create LLM client
@@ -267,10 +384,13 @@ Examples:
 
             # Create appropriate chat session based on mode
             if mode == 'standard':
-                chat_session = ChatSession(self.servers, llm_client)
+                chat_session = ChatSession(self.servers, llm_client, self.config)
             else:
                 from src.enhanced_chat_session import EnhancedChatSession
-                chat_session = EnhancedChatSession(self.servers, llm_client)
+                chat_session = EnhancedChatSession(self.servers, llm_client, self.config)
+            
+            # Store reference for signal handler
+            self.chat_session = chat_session
                 
             # Start the chat session
             await chat_session.start()
@@ -284,6 +404,9 @@ Examples:
         """Main run method"""
         # Setup environment
         self.setup_environment()
+        
+        # Setup signal handlers for graceful shutdown
+        self.setup_signal_handlers()
         
         # Parse arguments
         parsed_args = self.parse_arguments(args)
@@ -312,12 +435,14 @@ Examples:
         
         # Handle list tools
         if parsed_args.list_tools:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                return loop.run_until_complete(self.list_tools())
-            finally:
-                loop.close()
+                # Use asyncio.run for cleaner event loop management
+                return asyncio.run(self.list_tools())
+            except KeyboardInterrupt:
+                return 0
+            except Exception as e:
+                print(f"[ERROR] Failed to list tools: {e}")
+                return 1
 
         # Handle UI mode
         if parsed_args.ui:
@@ -365,21 +490,19 @@ Examples:
             return 1
             
         finally:
-            # Cleanup phase
+            # Cleanup phase - ensure all resources are properly released
+            print("\n[INFO] Shutting down SwarmBot...")
+            
+            # Run comprehensive cleanup
             try:
-                pending = asyncio.all_tasks(loop)
-            except AttributeError:
-                # Python 3.9+ uses asyncio.all_tasks()
-                pending = asyncio.tasks.all_tasks(loop)
-
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-
-            # Give time for cleanup
-            loop.run_until_complete(asyncio.sleep(0.5))
-
+                loop.run_until_complete(self._cleanup_event_loop(loop))
+            except Exception as e:
+                print(f"[WARNING] Error during cleanup: {e}")
+            
             # Close the loop
             try:
                 loop.close()
             except Exception:
-                pass  # Ignore cleanup errors
+                pass
+                
+            print("[INFO] Cleanup completed.")

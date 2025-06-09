@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 WebSocket Test Cleanup Script
 Removes old test files and temporary verification scripts
@@ -9,7 +10,7 @@ from pathlib import Path
 def cleanup_websocket_tests():
     """Remove old WebSocket test files and verification scripts"""
     
-    test_dir = Path(__file__).parent
+    test_dir = Path(__file__).parent.parent
     
     # Files to remove
     files_to_remove = [

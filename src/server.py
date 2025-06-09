@@ -160,9 +160,10 @@ class Server:
         return False, f"Tool execution failed: {last_error}"
 
     async def cleanup(self) -> None:
-        """Clean up server resources."""
+        """Clean up server resources with proper subprocess handling."""
         async with self._cleanup_lock:
             try:
+                # First, try to gracefully close the session
                 if self.session:
                     try:
                         await self.session.__aexit__(None, None, None)
@@ -171,13 +172,54 @@ class Server:
                     finally:
                         self.session = None
 
+                # Then handle stdio context and subprocess
                 if self.stdio_context:
                     try:
-                        await self.stdio_context.__aexit__(None, None, None)
-                    except (RuntimeError, asyncio.CancelledError) as e:
-                        logger.debug(f"Normal shutdown for {self.name}: {e}")
+                        # Get the subprocess if available
+                        subprocess = None
+                        if hasattr(self.stdio_context, '_process'):
+                            subprocess = self.stdio_context._process
+                        elif hasattr(self.stdio_context, 'process'):
+                            subprocess = self.stdio_context.process
+                        
+                        # Try graceful cleanup first
+                        try:
+                            await self.stdio_context.__aexit__(None, None, None)
+                        except (RuntimeError, asyncio.CancelledError) as e:
+                            logger.debug(f"Normal shutdown for {self.name}: {e}")
+                        except Exception as e:
+                            logger.warning(f"Error during stdio cleanup for {self.name}: {e}")
+                        
+                        # Ensure subprocess is terminated
+                        if subprocess and hasattr(subprocess, 'returncode'):
+                            if subprocess.returncode is None:
+                                logger.debug(f"Terminating subprocess for {self.name}")
+                                try:
+                                    subprocess.terminate()
+                                    # Wait for termination with timeout
+                                    await asyncio.wait_for(subprocess.wait(), timeout=2.0)
+                                except asyncio.TimeoutError:
+                                    logger.warning(f"Force killing subprocess for {self.name}")
+                                    try:
+                                        subprocess.kill()
+                                        await subprocess.wait()
+                                    except Exception:
+                                        pass
+                                except Exception as e:
+                                    logger.debug(f"Error terminating subprocess: {e}")
+                        
+                        # Clear stdio pipes
+                        if subprocess:
+                            for stream in ['stdin', 'stdout', 'stderr']:
+                                pipe = getattr(subprocess, stream, None)
+                                if pipe and hasattr(pipe, 'close') and not pipe.closed:
+                                    try:
+                                        pipe.close()
+                                    except Exception:
+                                        pass
+                        
                     except Exception as e:
-                        logger.warning(f"Unexpected error during stdio cleanup for {self.name}: {e}")
+                        logger.warning(f"Unexpected error during subprocess cleanup for {self.name}: {e}")
                     finally:
                         self.stdio_context = None
                         

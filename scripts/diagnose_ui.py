@@ -11,7 +11,7 @@ import importlib.util
 import json
 
 # Add project root to Python path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 def print_header(title):
@@ -123,10 +123,12 @@ def check_configuration():
             with open(config_path, 'r') as f:
                 config = json.load(f)
             print(f"✓ servers_config.json is valid JSON")
-            if 'mcpServers' in config:
-                print(f"✓ Found {len(config['mcpServers'])} MCP servers configured")
+            # Handle both 'servers' and 'mcpServers' keys for backward compatibility
+            servers_dict = config.get('servers', config.get('mcpServers', {}))
+            if servers_dict:
+                print(f"✓ Found {len(servers_dict)} MCP servers configured")
             else:
-                print("✗ No mcpServers section in config")
+                print("✗ No servers section in config")
         except json.JSONDecodeError as e:
             print(f"✗ servers_config.json is invalid: {e}")
             return False

@@ -17,7 +17,7 @@ def run_test(script_name, description):
     print('='*60)
     
     # Get the tests directory path
-    tests_dir = Path(__file__).parent
+    tests_dir = Path(__file__).parent.parent
     script_path = tests_dir / script_name
     
     # Handle special case for demo script

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Manual WebSocket Test Verification
 """

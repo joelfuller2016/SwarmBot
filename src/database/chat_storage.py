@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ChatDatabase:
     """Manages the chat history database with raw data storage"""
     
-    def __init__(self, db_path: str = "swarmbot_chats.db"):
+    def __init__(self, db_path: str = "data/swarmbot_chats.db"):
         """Initialize the database connection and create tables if needed"""
         self.db_path = db_path
         self.conn = None

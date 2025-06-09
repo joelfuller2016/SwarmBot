@@ -26,6 +26,18 @@ class ConfigValidator:
             'servers_config': {
                 "type": "object",
                 "properties": {
+                    "servers": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "required": ["command", "args"],
+                            "properties": {
+                                "command": {"type": "string"},
+                                "args": {"type": "array", "items": {"type": "string"}},
+                                "env": {"type": "object"}
+                            }
+                        }
+                    },
                     "mcpServers": {
                         "type": "object",
                         "additionalProperties": {
@@ -39,7 +51,10 @@ class ConfigValidator:
                         }
                     }
                 },
-                "required": ["mcpServers"]
+                "anyOf": [
+                    {"required": ["servers"]},
+                    {"required": ["mcpServers"]}
+                ]
             },
             'tool_patterns': {
                 "type": "object",
@@ -164,7 +179,9 @@ class ConfigValidator:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
-        for server_name, server_config in config.get("mcpServers", {}).items():
+        # Handle both 'servers' and 'mcpServers' keys for backward compatibility
+        servers_dict = config.get("servers", config.get("mcpServers", {}))
+        for server_name, server_config in servers_dict.items():
             command = server_config.get("command")
             if command in ["npx", "uvx", "python", "node"]:
                 # These are common commands that should exist

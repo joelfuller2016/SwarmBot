@@ -1,15 +1,81 @@
-Product Requirements Document: SwarmBot Project Refinement
+# SwarmBot Test Suite Audit and Cleanup
 
-This document outlines the necessary tasks to improve the structure, documentation, and maintainability of the SwarmBot project.
+## Project Overview
+Comprehensive audit of all test files in the SwarmBot tests directory to ensure test suite quality and maintainability.
 
-**1. Project Structure & Maintenance:**
-    *   **1.1 Consolidate Launchers and Remove Deprecated Code:** The project has multiple redundant launcher scripts and deprecated code directories. The goal is to consolidate all launch logic into `launch.py`, remove all other launcher files, and delete the `deprecated_launchers` and `scripts/deprecated` directories to simplify the project structure.
-    *   **1.2 Evaluate and Refactor the Task Management System:** The project uses a custom, file-based task management system in the `.taskmaster` directory. The goal is to evaluate this system and consider migrating to a more standard approach like a single `TASKS.md` file or GitHub Issues to improve visibility and manageability.
+## Objectives
+1. Audit all test files in the tests directory
+2. Verify each test runs successfully
+3. Fix broken tests or identify why they fail
+4. Remove obsolete or redundant tests
+5. Document test coverage and purpose
+6. Ensure proper organization and naming conventions
 
-**2. Documentation:**
-    *   **2.1 Correct README.md Regarding Testing Framework Status:** The `README.MD` incorrectly states "Testing Framework: Pending". The goal is to update the `README.MD` to accurately reflect the current state of the testing framework and include instructions on how to run the tests.
-    *   **2.2 Reorganize the Docs Directory:** The `Docs` directory is large and contains many similarly named and potentially outdated files. The goal is to reorganize the documentation by creating a central `INDEX.md` or `SUMMARY.md` file, and archiving or deleting outdated documents to improve clarity and maintainability.
-    *   **2.3 Clarify Configuration Management in README.md:** The roles of the `.env` file and `config/servers_config.json` are not explicitly defined in the documentation. The goal is to add a section to the main `README.md` that clearly explains the purpose of each configuration file.
+## Test Categories to Audit
 
-**3. Testing:**
-    *   **3.1 Document the Project's Testing Strategy:** The testing strategy is unclear due to the mix of files in the `tests` directory. The goal is to create a `README.md` file within the `tests` directory that explains the testing strategy, how to run the tests, and the purpose of the different test files.
+### 1. Main Test Files (45+ files)
+- AsyncIO related tests (test_asyncio_*.py)
+- Dashboard tests (test_dashboard_*.py)
+- WebSocket tests (test_websocket_*.py)
+- Configuration tests (test_config*.py)
+- Fix verification tests (*_fix.py)
+- Integration tests
+- Unit tests
+- Validation scripts
+
+### 2. Test Subdirectories
+- archive/ - Old websocket tests (determine if needed)
+- integration/ - Integration test suite
+- mcp/ - MCP-specific tests
+- unit/ - Unit test suite
+
+### 3. Utility Scripts
+- run_*.py scripts
+- verify_*.py scripts
+- validate_*.py scripts
+
+## Audit Process for Each Test
+
+1. **Run Test**: Execute test file and capture results
+2. **Analyze Results**:
+   - If passes: Document purpose and coverage
+   - If fails: Identify root cause
+   - If obsolete: Mark for removal
+3. **Fix or Remove**:
+   - Fix import issues
+   - Update deprecated code
+   - Remove redundant tests
+4. **Document**: Update test documentation
+
+## Success Criteria
+- All retained tests pass successfully
+- No redundant or obsolete tests remain
+- Clear documentation of test purpose
+- Proper organization by category
+- Clean test execution without warnings
+
+## Technical Requirements
+- Python 3.13 compatibility
+- Proper path references from tests/ directory
+- No circular imports
+- Clean pytest execution
+- No hardcoded paths
+
+## Deliverables
+1. Working test suite with all tests passing
+2. Removed obsolete tests
+3. Test audit report documenting:
+   - Test purpose and coverage
+   - Tests removed and why
+   - Tests fixed and what was changed
+4. Updated test organization structure
+5. Test execution guide
+
+## Priority Order
+1. Critical path tests (imports, config, basic functionality)
+2. Fix verification tests
+3. Integration tests
+4. WebSocket tests
+5. UI/Dashboard tests
+6. Utility and validation scripts
+7. Archive and deprecated tests
