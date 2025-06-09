@@ -49,6 +49,9 @@ class Configuration:
 
         # Context management configuration
         self.max_context_tokens = int(os.getenv("MAX_CONTEXT_TOKENS", "4000"))
+        
+        # LLM timeout configuration
+        self.llm_timeout = int(os.getenv("LLM_TIMEOUT", "60"))  # Default 60 seconds
 
     @staticmethod
     def load_env() -> None:
