@@ -406,12 +406,12 @@ Remember: Be proactive, intelligent, and helpful!"""
                         auto_response = await self.process_with_auto_tools(user_input)
                     
                     # Get LLM response
-                    print("\n🤖 SwarmBot: ", end="", flush=True)
+                    
                     
                     if auto_response:
                         # Use auto-generated tool call
                         llm_response = auto_response
-                        print("[Auto-tool mode] ", end="", flush=True)
+                        print("\n🤖 SwarmBot: [Auto-tool mode] ", end="", flush=True)
                     else:
                         # Get LLM response
                         llm_response = self.llm_client.get_response(self.conversation_history)
@@ -421,7 +421,7 @@ Remember: Be proactive, intelligent, and helpful!"""
                     
                     if result != llm_response:
                         # Tool was executed
-                        print(result)
+                        print(f"\n🔧 Tool Result: {result}")
                         
                         # Update conversation
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
@@ -446,7 +446,7 @@ Remember: Be proactive, intelligent, and helpful!"""
                             continue
                     else:
                         # Regular response
-                        print(llm_response)
+                        print(f"\n🤖 SwarmBot: {llm_response}")
                         self.conversation_history.append({"role": "assistant", "content": llm_response})
                         
                         # Check for auto-prompt
