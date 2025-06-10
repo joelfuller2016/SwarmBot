@@ -263,7 +263,7 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                         with LoadingIndicator(""):
                             # Get context for LLM
                             messages = self.context_manager.get_context_for_llm()
-                            llm_response = self.llm_client.get_response(messages)
+                            llm_response = self.llm_client.get_response(messages, conversation_id=session_id)
                     except Exception as e:
                         error_msg = self.error_formatter.format_error(e)
                         print(f"\n❌ {error_msg}")
@@ -285,7 +285,7 @@ Remember: You have access to {len(self.all_tools)} tools across {len(self.active
                         
                         # Get final response
                         messages = self.context_manager.get_context_for_llm()
-                        final_response = self.llm_client.get_response(messages)
+                        final_response = self.llm_client.get_response(messages, conversation_id=session_id)
                         print(f"\n🤖 SwarmBot: {final_response}")
                         self.conversation_history.append({"role": "assistant", "content": final_response})
                         self.context_manager.add_message("assistant", final_response)

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..database.cost_tracking import CostTrackingDB
 from ..config import Configuration
+from .budget_monitor import BudgetMonitor, BudgetAlert
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +69,11 @@ class ModelCost:
 class RequestCost:
     """Represents the cost of a single API request"""
     
-    def __init__(self, conversation_id: str, model: str,
+    def __init__(self, session_id: str, model: str,
                  input_tokens: int, output_tokens: int,
                  input_cost: float, output_cost: float,
                  timestamp: Optional[datetime] = None):
-        self.conversation_id = conversation_id
+        self.session_id = session_id
         self.model = model
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
@@ -84,7 +85,7 @@ class RequestCost:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
         return {
-            'conversation_id': self.conversation_id,
+            'session_id': self.session_id,
             'model': self.model,
             'input_tokens': self.input_tokens,
             'output_tokens': self.output_tokens,
@@ -141,7 +142,7 @@ class CostTracker:
         except Exception as e:
             logger.error(f"Failed to load custom costs: {e}")
     
-    def track_request(self, conversation_id: str, model: str,
+    def track_request(self, session_id: str, model: str,
                      input_tokens: int, output_tokens: int,
                      provider: Optional[str] = None) -> Optional[RequestCost]:
         """Track a single API request"""
@@ -151,7 +152,7 @@ class CostTracker:
         try:
             # Log to database
             self.db.log_request_cost(
-                conversation_id=conversation_id,
+                session_id=session_id,
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -172,7 +173,7 @@ class CostTracker:
             
             # Create RequestCost object
             request_cost = RequestCost(
-                conversation_id=conversation_id,
+                session_id=session_id,
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -207,13 +208,13 @@ class CostTracker:
         self.session_costs['by_model'][request_cost.model]['requests'] += 1
         
         # Track by conversation
-        if request_cost.conversation_id not in self.session_costs['by_conversation']:
-            self.session_costs['by_conversation'][request_cost.conversation_id] = {
+        if request_cost.session_id not in self.session_costs['by_conversation']:
+            self.session_costs['by_conversation'][request_cost.session_id] = {
                 'total': 0.0,
                 'requests': 0
             }
-        self.session_costs['by_conversation'][request_cost.conversation_id]['total'] += request_cost.total_cost
-        self.session_costs['by_conversation'][request_cost.conversation_id]['requests'] += 1
+        self.session_costs['by_conversation'][request_cost.session_id]['total'] += request_cost.total_cost
+        self.session_costs['by_conversation'][request_cost.session_id]['requests'] += 1
     
     def _check_cost_alerts(self):
         """Check if costs exceed alert thresholds"""

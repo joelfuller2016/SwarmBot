@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 import sys
 import threading
+import json
+from datetime import datetime, timedelta
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -25,6 +27,10 @@ from dash.dependencies import Input, Output
 from src.ui.dash.layouts import create_main_layout
 from src.ui.dash.pages.testing_dashboard import create_layout as create_testing_layout
 from src.ui.dash.callbacks.testing_callbacks import register_testing_page_callbacks
+
+# Import cost tracking modules
+from src.database.cost_tracking import CostTrackingDB
+from src.core.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,20 @@ class SwarmBotDashboard:
         else:
             self.test_runner_service = None
             logger.warning("TestRunnerService not available in SwarmBotDashboard")
+        
+        # Initialize cost tracking
+        if self.config.config.get('TRACK_COSTS', True):
+            try:
+                self.cost_tracker = CostTracker(self.config)
+                self.cost_db = CostTrackingDB(self.config.config.get('DATABASE_PATH', 'data/swarmbot_chats.db'))
+                logger.info("Cost tracking initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize cost tracking: {e}")
+                self.cost_tracker = None
+                self.cost_db = None
+        else:
+            self.cost_tracker = None
+            self.cost_db = None
         
     def setup_mcp_servers(self):
         # ... (method content is correct and remains unchanged)
@@ -113,11 +133,19 @@ class SwarmBotDashboard:
             
             self.app.layout = create_main_layout()
             register_testing_page_callbacks(self.app)
+            
+            # Register cost tracking callbacks if enabled
+            if self.config.config.get('TRACK_COSTS', True):
+                from src.ui.dash.pages.cost_tracking import register_cost_dashboard_callbacks
+                register_cost_dashboard_callbacks(self.app, self)
 
             @self.app.callback(Output('page-content', 'children'), Input('url', 'pathname'))
             def display_page(pathname):
                 if pathname == '/testing':
                     return create_testing_layout()
+                elif pathname == '/costs':
+                    from src.ui.dash.pages.cost_tracking import create_cost_dashboard_layout
+                    return create_cost_dashboard_layout()
                 else:
                     from src.ui.dash.layouts import create_agent_monitor_layout
                     return create_agent_monitor_layout() 
@@ -155,6 +183,107 @@ class SwarmBotDashboard:
                 loop.run_until_complete(self.shutdown())
         else:
             logger.error("Failed to create dashboard app")
+
+    def get_cost_tracking_data(self):
+        """Get cost tracking data for dashboard"""
+        if not self.cost_db:
+            return self._empty_cost_data()
+            
+        try:
+            # Get today's costs
+            today = datetime.now().date()
+            daily_costs = self.cost_db.get_daily_costs(1)
+            today_data = next((d for d in daily_costs if d['date'] == today.isoformat()), None)
+            
+            # Get month's costs
+            month_summary = self.cost_db.get_cost_summary(
+                start_date=datetime.now().replace(day=1).isoformat(),
+                end_date=datetime.now().isoformat()
+            )
+            
+            # Get all-time summary
+            all_time_summary = self.cost_db.get_cost_summary()
+            
+            # Get budget status
+            budget_threshold = self.config.config.get('COST_ALERT_THRESHOLD', 10.0)
+            budget_status = self.cost_db.check_budget_threshold(budget_threshold)
+            
+            # Get daily costs for chart
+            daily_costs_30 = self.cost_db.get_daily_costs(30)
+            
+            # Get model usage stats
+            model_usage = self.cost_db.get_model_usage_stats()
+            
+            # Get top conversations
+            top_conversations = self.cost_db.get_conversation_rankings(10)
+            
+            return {
+                'today': {
+                    'total_cost': today_data['total_cost'] if today_data else 0,
+                    'request_count': today_data['request_count'] if today_data else 0
+                },
+                'month': {
+                    'total_cost': month_summary['total_cost'],
+                    'request_count': month_summary['total_requests']
+                },
+                'all_time': {
+                    'total_cost': all_time_summary['total_cost'],
+                    'request_count': all_time_summary['total_requests'],
+                    'avg_cost_per_request': all_time_summary['average_cost_per_request']
+                },
+                'budget': budget_status,
+                'daily_costs': daily_costs_30,
+                'model_usage': model_usage,
+                'top_conversations': top_conversations
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting cost tracking data: {e}")
+            return self._empty_cost_data()
+    
+    def _empty_cost_data(self):
+        """Return empty cost data structure"""
+        return {
+            'today': {'total_cost': 0, 'request_count': 0},
+            'month': {'total_cost': 0, 'request_count': 0},
+            'all_time': {'total_cost': 0, 'request_count': 0, 'avg_cost_per_request': 0},
+            'budget': {
+                'current_month_cost': 0,
+                'budget_threshold': 10.0,
+                'exceeded': False,
+                'percentage_used': 0,
+                'remaining_budget': 10.0
+            },
+            'daily_costs': [],
+            'model_usage': [],
+            'top_conversations': []
+        }
+    
+    def export_cost_data_csv(self, start_date: str, end_date: str):
+        """Export cost data as CSV"""
+        if not self.cost_db:
+            return "session_id,timestamp,model,input_tokens,output_tokens,input_cost,output_cost,total_cost\n"
+            
+        try:
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv') as f:
+                self.cost_db.export_costs_csv(f.name, start_date, end_date)
+                f.seek(0)
+                return open(f.name, 'r').read()
+        except Exception as e:
+            logger.error(f"Error exporting CSV: {e}")
+            return "Error exporting data"
+    
+    def export_cost_data_json(self, start_date: str, end_date: str):
+        """Export cost data as JSON"""
+        if not self.cost_db:
+            return json.dumps({'error': 'Cost tracking not available'})
+            
+        try:
+            return self.cost_db.export_costs_json(start_date, end_date)
+        except Exception as e:
+            logger.error(f"Error exporting JSON: {e}")
+            return json.dumps({'error': str(e)})
 
     async def shutdown(self):
         logger.info("Shutting down swarm coordinator...")

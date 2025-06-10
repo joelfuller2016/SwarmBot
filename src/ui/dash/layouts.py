@@ -24,6 +24,7 @@ def create_navbar() -> dbc.Navbar:
                         dbc.NavItem(dbc.NavLink("Tasks", href="/tasks")),
                         dbc.NavItem(dbc.NavLink("Performance", href="/performance")),
                         dbc.NavItem(dbc.NavLink("Testing", href="/testing")),
+                        dbc.NavItem(dbc.NavLink("Costs", href="/costs")),
                         dbc.NavItem(dbc.NavLink("Settings", href="/settings")),
                     ], navbar=True)
                 ], width=True),

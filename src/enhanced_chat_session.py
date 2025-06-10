@@ -362,6 +362,14 @@ Remember: Be proactive, intelligent, and helpful!"""
             print("  - Type 'help' for more commands")
             print("=" * 60)
             
+            # Initialize database logger
+            import time
+            from .database.chat_storage import ChatDatabase, ChatLogger
+            db = ChatDatabase()
+            session_id = f"session_{int(time.time())}"
+            db.create_session(session_id, self.llm_client.provider_name)
+            self.db_logger = ChatLogger(db, session_id)
+            
             # Build enhanced system prompt
             system_message = {
                 "role": "system",
@@ -414,7 +422,7 @@ Remember: Be proactive, intelligent, and helpful!"""
                         print("\n🤖 SwarmBot: [Auto-tool mode] ", end="", flush=True)
                     else:
                         # Get LLM response
-                        llm_response = self.llm_client.get_response(self.conversation_history)
+                        llm_response = self.llm_client.get_response(self.conversation_history, conversation_id=session_id)
                     
                     # Process response
                     result = await self.enhanced_process_response(llm_response, user_input)
@@ -436,7 +444,7 @@ Remember: Be proactive, intelligent, and helpful!"""
                             "content": f"Tool executed: {llm_response}\nResult: {result}\nSummarize this naturally."
                         }]
                         
-                        summary = self.llm_client.get_response(summary_prompt)
+                        summary = self.llm_client.get_response(summary_prompt, conversation_id=session_id)
                         print(f"\n💬 {summary}")
                         self.conversation_history.append({"role": "assistant", "content": summary})
                         
@@ -461,6 +469,10 @@ Remember: Be proactive, intelligent, and helpful!"""
                     print(f"\n❌ Error: {str(e)}")
         
         finally:
+            # End session in database
+            if self.db_logger:
+                self.db_logger.db.end_session(session_id)
+            
             await self.cleanup_servers()
     
     def detect_incomplete_goal(self, response: str) -> bool:
