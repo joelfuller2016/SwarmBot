@@ -2223,15 +2223,15 @@
     {
       "id": 96,
       "title": "Implement LLM API Cost Tracking System",
-      "description": "Develop a comprehensive cost tracking system that monitors and reports on LLM API usage costs across multiple providers, integrating with the existing token analyzer for real-time cost tracking and analysis.",
+      "description": "Develop a comprehensive cost tracking system that monitors and reports on LLM API usage costs across multiple providers, integrating with the existing token analyzer for real-time cost tracking and analysis. Address critical integration issues identified during code review to ensure proper functionality.",
       "status": "in-progress",
       "dependencies": [
         81,
         83
       ],
       "priority": "high",
-      "details": "### Implementation Overview\nThe cost tracking system will monitor LLM API usage costs in real-time, providing detailed analytics and reporting capabilities while integrating with the existing token analyzer.\n\n### Key Components\n\n1. **Cost Calculation Engine**\n   - Implement provider-specific pricing models for OpenAI, Anthropic, and Groq\n   - Calculate costs based on input/output tokens for each request\n   - Support different pricing tiers and model variations\n   - Create extensible architecture to easily add new providers\n   - Use Decimal for precision in cost calculations\n\n2. **Database Schema Extensions**\n   - Add cost-related tables to store:\n     - `model_costs` (model_name, provider, input_cost_per_1k, output_cost_per_1k, context_window, last_updated)\n     - `request_costs` (id, conversation_id, timestamp, model, input_tokens, output_tokens, input_cost, output_cost, total_cost)\n     - `conversation_costs` (conversation_id, start_time, last_update, total_cost, request_count)\n\n3. **Provider API Integration**\n   - Implement adapters for each LLM provider's pricing API\n   - Create scheduled jobs to fetch and update pricing information via `src/core/cost_updater.py`\n   - Include fallback to static pricing when APIs are unavailable\n   - Store pricing history for retrospective analysis\n\n4. **Token Analyzer Integration**\n   - Extend the existing token analyzer to include cost calculations using `src/core/integrated_analyzer.py`\n   - Modify the token counting pipeline to pass token counts to the cost calculator\n   - Create combined reports showing both token usage and associated costs\n   - Implement real-time cost estimation during token counting\n\n5. **Reporting and Visualization**\n   - Create cost dashboards showing:\n     - Current period costs by provider/model\n     - Historical cost trends\n     - Cost breakdown by conversation\n     - Projected costs based on usage patterns\n     - Model cost comparison table\n   - Implement export functionality for JSON, CSV, and PDF formats\n   - Generate detailed cost reports with filtering options\n\n6. **Alerting and Budgeting System**\n   - Implement budget configuration UI\n   - Create alert triggers based on:\n     - Approaching budget thresholds\n     - Unusual cost spikes\n     - Reaching predefined cost limits (COST_ALERT_THRESHOLD)\n   - Send notifications via email, in-app, or webhooks\n   - Implement budget tracking and forecasting\n\n7. **API and Integration Points**\n   - Create REST endpoints for cost data retrieval\n   - Implement webhooks for cost-related events\n   - Modify context_manager.py to track costs without enforcing limits\n   - Update LLM client adapters to report token usage\n   - Add cost display to dashboard UI\n   - Include cost metrics in conversation history\n\n### Core Files to Implement\n- `src/core/cost_tracker.py` - Main cost tracking logic with ModelCost and RequestCost classes\n- `src/core/integrated_analyzer.py` - Integration between token analyzer and cost tracker\n- `src/core/cost_updater.py` - Automated price fetching from provider APIs\n\n### Configuration Options\n- TRACK_COSTS=true/false\n- COST_ALERT_THRESHOLD=10.00\n- CUSTOM_COSTS_FILE=path/to/costs.json\n- EXPORT_COSTS_ON_EXIT=true\n\n### Technical Considerations\n- Ensure accurate token counting across different tokenization schemes\n- Implement caching to minimize performance impact\n- Design for scalability to handle high-volume API usage\n- Consider multi-currency support for international deployments\n- Implement proper error handling for API failures\n- Ensure data consistency between token counts and cost calculations\n- Per-conversation cost tracking with rolling totals",
-      "testStrategy": "### Testing Strategy\n\n1. **Unit Tests**\n   - Test cost calculation functions with known token counts and prices\n   - Verify correct handling of different pricing models\n   - Test database operations for cost recording\n   - Validate provider API integration with mock responses\n   - Ensure proper error handling for edge cases\n   - Test Decimal precision in cost calculations\n   - Verify ModelCost and RequestCost classes in cost_tracker.py\n\n2. **Integration Tests**\n   - Verify token analyzer integration by tracking sample requests\n   - Test end-to-end flow from API request to cost recording\n   - Validate database consistency after multiple operations\n   - Test budget alert triggers with simulated usage\n   - Verify export functionality for all supported formats (JSON, CSV, PDF)\n   - Test integrated_analyzer.py with various token counts and models\n\n3. **Performance Testing**\n   - Measure impact on request latency with cost tracking enabled\n   - Test system under high load conditions\n   - Verify database performance with large cost history\n   - Benchmark report generation with extensive datasets\n   - Test performance with TRACK_COSTS enabled vs disabled\n\n4. **Validation Tests**\n   - Compare calculated costs with actual provider invoices\n   - Verify accuracy of token counting across different models\n   - Validate budget enforcement mechanisms\n   - Test alert delivery through all notification channels\n   - Verify cost_updater.py correctly fetches and updates pricing information\n\n5. **User Acceptance Testing**\n   - Verify dashboard usability and information clarity\n   - Test report generation and export functionality\n   - Validate budget configuration workflow\n   - Ensure alert notifications are clear and actionable\n   - Test model cost comparison table for clarity and accuracy\n\n6. **Specific Test Cases**\n   - Test with multiple concurrent conversations\n   - Verify cost tracking across provider API updates\n   - Test with extremely long conversations\n   - Validate handling of free tier usage and transitions to paid\n   - Test with simulated API errors and pricing changes\n   - Verify per-conversation cost tracking with rolling totals\n   - Test configuration options (TRACK_COSTS, COST_ALERT_THRESHOLD, etc.)\n   - Validate EXPORT_COSTS_ON_EXIT functionality",
+      "details": "### Implementation Overview\nThe cost tracking system will monitor LLM API usage costs in real-time, providing detailed analytics and reporting capabilities while integrating with the existing token analyzer.\n\n### Current Implementation Status\n\n#### ✅ Completed Components\n- **Core Cost Tracking Modules**: ModelCost and RequestCost classes, CostTracker manager with session tracking, budget monitoring, alert system, and export functionality\n- **Integrated Analyzer**: Real-time cost calculation, comprehensive metrics, model efficiency comparisons\n- **Cost Updater**: Static pricing data for multiple providers, framework for automated updates\n- **Database Schema**: Migration files, core tables, reporting views, performance tracking\n\n#### ⚠️ In-Progress Components with Critical Issues\n- **System Integration**: Context manager and LLM client adapter updated, but critical issues prevent proper functionality\n- **Configuration Options**: Core options implemented but not documented\n\n#### ❌ Pending Components\n- **Reporting and Visualization**: Dashboard UI, enhanced exports, visualizations\n- **Alerting and Budgeting UI**: Budget configuration interface, notification system\n- **Comprehensive Testing**: Unit tests, integration tests, performance testing\n\n### Key Components\n\n1. **Cost Calculation Engine**\n   - Implement provider-specific pricing models for OpenAI, Anthropic, and Groq\n   - Calculate costs based on input/output tokens for each request\n   - Support different pricing tiers and model variations\n   - Create extensible architecture to easily add new providers\n   - Use Decimal for precision in cost calculations\n\n2. **Database Schema Extensions**\n   - Add cost-related tables to store:\n     - `model_costs` (model_name, provider, input_cost_per_1k, output_cost_per_1k, context_window, last_updated)\n     - `request_costs` (id, conversation_id, timestamp, model, input_tokens, output_tokens, input_cost, output_cost, total_cost)\n     - `conversation_costs` (conversation_id, start_time, last_update, total_cost, request_count)\n\n3. **Provider API Integration**\n   - Implement adapters for each LLM provider's pricing API\n   - Create scheduled jobs to fetch and update pricing information via `src/core/cost_updater.py`\n   - Include fallback to static pricing when APIs are unavailable\n   - Store pricing history for retrospective analysis\n\n4. **Token Analyzer Integration**\n   - Extend the existing token analyzer to include cost calculations using `src/core/integrated_analyzer.py`\n   - Modify the token counting pipeline to pass token counts to the cost calculator\n   - Create combined reports showing both token usage and associated costs\n   - Implement real-time cost estimation during token counting\n\n5. **Reporting and Visualization**\n   - Create cost dashboards showing:\n     - Current period costs by provider/model\n     - Historical cost trends\n     - Cost breakdown by conversation\n     - Projected costs based on usage patterns\n     - Model cost comparison table\n   - Implement export functionality for JSON, CSV, and PDF formats\n   - Generate detailed cost reports with filtering options\n\n6. **Alerting and Budgeting System**\n   - Implement budget configuration UI\n   - Create alert triggers based on:\n     - Approaching budget thresholds\n     - Unusual cost spikes\n     - Reaching predefined cost limits (COST_ALERT_THRESHOLD)\n   - Send notifications via email, in-app, or webhooks\n   - Implement budget tracking and forecasting\n\n7. **API and Integration Points**\n   - Create REST endpoints for cost data retrieval\n   - Implement webhooks for cost-related events\n   - Modify context_manager.py to track costs without enforcing limits\n   - Update LLM client adapters to report token usage\n   - Add cost display to dashboard UI\n   - Include cost metrics in conversation history\n\n8. **Critical Integration Issues to Address**\n   - Fix session_id not being passed to LLM client in chat_session.py\n   - Resolve migration system failures on first run\n   - Standardize naming between session_id and conversation_id throughout the codebase\n   - Ensure proper foreign key relationships in database schema\n   - Handle missing tables gracefully during initialization\n\n### Core Files to Implement\n- `src/core/cost_tracker.py` - Main cost tracking logic with ModelCost and RequestCost classes\n- `src/core/integrated_analyzer.py` - Integration between token analyzer and cost tracker\n- `src/core/cost_updater.py` - Automated price fetching from provider APIs\n\n### Configuration Options\n- TRACK_COSTS=true/false\n- COST_ALERT_THRESHOLD=10.00\n- CUSTOM_COSTS_FILE=path/to/costs.json\n- EXPORT_COSTS_ON_EXIT=true\n\n### Action Plan Priority\n- **Phase 1 (2-3 days)**: Fix critical issues - session ID passing, migration system, naming standardization\n- **Phase 2 (1 day)**: Database integrity - add foreign keys, fix query logging\n- **Phase 3 (1 day)**: Documentation - update .env.example, create user guide\n- **Phase 4 (2-3 days)**: Testing - unit, integration, manual testing\n- **Phase 5 (3-5 days)**: UI Development - dashboard and reporting\n- **Phase 6 (2-3 days)**: Alerting System - budget config and notifications\n\n### Technical Considerations\n- Ensure accurate token counting across different tokenization schemes\n- Implement caching to minimize performance impact\n- Design for scalability to handle high-volume API usage\n- Consider multi-currency support for international deployments\n- Implement proper error handling for API failures\n- Ensure data consistency between token counts and cost calculations\n- Per-conversation cost tracking with rolling totals\n- Standardize terminology (session_id vs conversation_id) throughout the system",
+      "testStrategy": "### Testing Strategy\n\n1. **Unit Tests**\n   - Test cost calculation functions with known token counts and prices\n   - Verify correct handling of different pricing models\n   - Test database operations for cost recording\n   - Validate provider API integration with mock responses\n   - Ensure proper error handling for edge cases\n   - Test Decimal precision in cost calculations\n   - Verify ModelCost and RequestCost classes in cost_tracker.py\n   - Test proper session_id/conversation_id handling across components\n\n2. **Integration Tests**\n   - Verify token analyzer integration by tracking sample requests\n   - Test end-to-end flow from API request to cost recording\n   - Validate database consistency after multiple operations\n   - Test budget alert triggers with simulated usage\n   - Verify export functionality for all supported formats (JSON, CSV, PDF)\n   - Test integrated_analyzer.py with various token counts and models\n   - Verify chat_session.py correctly passes session_id to LLM client\n\n3. **Performance Testing**\n   - Measure impact on request latency with cost tracking enabled\n   - Test system under high load conditions\n   - Verify database performance with large cost history\n   - Benchmark report generation with extensive datasets\n   - Test performance with TRACK_COSTS enabled vs disabled\n\n4. **Validation Tests**\n   - Compare calculated costs with actual provider invoices\n   - Verify accuracy of token counting across different models\n   - Validate budget enforcement mechanisms\n   - Test alert delivery through all notification channels\n   - Verify cost_updater.py correctly fetches and updates pricing information\n   - Test migration system with both new and existing databases\n\n5. **User Acceptance Testing**\n   - Verify dashboard usability and information clarity\n   - Test report generation and export functionality\n   - Validate budget configuration workflow\n   - Ensure alert notifications are clear and actionable\n   - Test model cost comparison table for clarity and accuracy\n\n6. **Specific Test Cases**\n   - Test with multiple concurrent conversations\n   - Verify cost tracking across provider API updates\n   - Test with extremely long conversations\n   - Validate handling of free tier usage and transitions to paid\n   - Test with simulated API errors and pricing changes\n   - Verify per-conversation cost tracking with rolling totals\n   - Test configuration options (TRACK_COSTS, COST_ALERT_THRESHOLD, etc.)\n   - Validate EXPORT_COSTS_ON_EXIT functionality\n   - Test first-run scenario to ensure migration system works correctly\n   - Verify consistent behavior with both session_id and conversation_id references",
       "subtasks": [
         {
           "id": 96.1,
@@ -2306,8 +2306,26 @@
             "Update context_manager.py to track costs without enforcing limits",
             "Modify LLM client adapters to report token usage",
             "Integrate with token analyzer for real-time cost calculation",
-            "Add cost metrics to conversation history"
-          ]
+            "Add cost metrics to conversation history",
+            "Fix session_id/conversation_id inconsistencies in the codebase",
+            "Update chat_session.py to properly pass session_id to LLM client"
+          ],
+          "details": {
+            "Current Status": {
+              "completed": [
+                "Context manager updated with cost tracking hooks",
+                "LLM client adapter updated with cost tracking"
+              ],
+              "pending": [
+                "Session ID not passed from chat_session to LLM client (lines 266, 288)",
+                "Naming inconsistency (session_id vs conversation_id) throughout codebase"
+              ]
+            },
+            "Critical Fixes Needed": {
+              "chat_session.py": "Update calls to `self.llm_client.get_response(messages)` to include `conversation_id=session_id` at lines 266 and 288",
+              "naming_standardization": "Create consistent naming convention between session_id and conversation_id throughout the codebase"
+            }
+          }
         },
         {
           "id": 96.4,
@@ -2337,13 +2355,27 @@
           "id": 96.6,
           "title": "Add configuration options",
           "description": "Implement configuration options for cost tracking system",
-          "status": "pending",
+          "status": "in_progress",
           "tasks": [
             "Add TRACK_COSTS toggle",
             "Implement COST_ALERT_THRESHOLD configuration",
             "Create support for CUSTOM_COSTS_FILE",
-            "Add EXPORT_COSTS_ON_EXIT functionality"
-          ]
+            "Add EXPORT_COSTS_ON_EXIT functionality",
+            "Document configuration options in .env.example"
+          ],
+          "details": {
+            "Current Status": {
+              "completed": [
+                "TRACK_COSTS toggle implemented",
+                "COST_ALERT_THRESHOLD implemented",
+                "CUSTOM_COSTS_FILE support implemented",
+                "EXPORT_COSTS_ON_EXIT implemented"
+              ],
+              "pending": [
+                "Documentation in .env.example"
+              ]
+            }
+          }
         },
         {
           "id": 96.7,
@@ -2355,8 +2387,33 @@
             "Create integration tests for end-to-end cost tracking",
             "Perform performance testing under various loads",
             "Validate cost calculations against actual provider invoices",
-            "Test export and reporting functionality"
+            "Test export and reporting functionality",
+            "Test first-run migration scenarios",
+            "Verify consistent behavior with session_id/conversation_id standardization"
           ]
+        },
+        {
+          "id": 96.8,
+          "title": "Fix critical integration issues",
+          "description": "Address critical bugs found in code review that prevent cost tracking from working correctly",
+          "details": "### Critical Issues to Fix\n\n1. **Session ID Not Passed to Cost Tracking**\n   - Location: `src/chat_session.py` lines 266, 288\n   - Fix: Update calls to `self.llm_client.get_response(messages)` to include `conversation_id=session_id`\n   \n2. **Migration Check Fails on First Run**\n   - Location: `src/database/cost_tracking.py` line 116\n   - Fix: Add try-except around migration check to handle non-existent migration_log table\n   \n3. **Naming Inconsistency**\n   - Issue: System uses both session_id and conversation_id\n   - Fix: Standardize on one term throughout the system\n   \n4. **Missing Foreign Key Constraints**\n   - Location: `migrations/001_cost_tracking_schema.sql`\n   - Fix: Add proper foreign key relationships to chat_sessions table\n   \n5. **Query Performance Log Table Missing**\n   - Issue: Referenced but not created until migration 004\n   - Fix: Either create in initial migration or handle missing table gracefully",
+          "status": "pending",
+          "tasks": [
+            "Fix session_id not being passed to LLM client in chat_session.py",
+            "Add error handling for migration system on first run",
+            "Standardize naming between session_id and conversation_id",
+            "Add proper foreign key constraints in database schema",
+            "Fix query performance log table reference issue"
+          ]
+        },
+        {
+          "id": 97.8,
+          "title": "Documentation and configuration updates",
+          "description": "Update documentation and configuration files to properly support cost tracking features",
+          "details": "### Documentation Tasks\n\n1. **Update .env.example**\n   - Add cost tracking environment variables:\n     ```\n     # Cost Tracking Configuration\n     TRACK_COSTS=true                # Enable/disable cost tracking\n     COST_ALERT_THRESHOLD=10.0       # Monthly budget alert threshold in USD\n     CUSTOM_COSTS_FILE=              # Path to custom cost configuration file\n     EXPORT_COSTS_ON_EXIT=false      # Export costs when shutting down\n     ```\n\n2. **Create Cost Tracking Documentation**\n   - Create `docs/cost_tracking.md` with:\n     - Overview of cost tracking features\n     - Configuration options explained\n     - How to view cost reports\n     - Budget alert configuration\n     - Export functionality usage\n     - Troubleshooting guide\n\n3. **Update README.md**\n   - Add section about cost tracking feature\n   - Include quick start guide for enabling cost tracking\n   - Link to detailed documentation\n\n4. **Update CHANGELOG.md**\n   - Document the new cost tracking feature\n   - Note any breaking changes (session_id/conversation_id standardization)\n   - List all new environment variables\n\n5. **Create Migration Guide**\n   - Document how to migrate existing databases\n   - Explain the new tables and their purposes\n   - Provide rollback instructions if needed\n\n6. **API Documentation**\n   - Document any new API endpoints for cost data\n   - Provide examples of cost report formats\n   - Explain webhook integration for alerts",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 96
         }
       ]
     },
@@ -2735,6 +2792,56 @@
       "status": "pending",
       "dependencies": [],
       "priority": "medium",
+      "subtasks": []
+    },
+    {
+      "id": 119,
+      "title": "Implement LLM API Cost Tracking System",
+      "description": "Develop a comprehensive cost tracking system that monitors and reports on LLM API usage costs across multiple providers (OpenAI, Anthropic, Google, Groq), integrating with the existing token analyzer for real-time cost tracking and analysis.",
+      "details": "Key Requirements:\n- Track costs for each API request in real-time\n- Support multiple LLM providers with different pricing models\n- Integrate seamlessly with existing SwarmBot infrastructure\n- Provide budget monitoring and alerting capabilities\n- Generate detailed cost reports and analytics\n- Minimal performance impact (<5% latency increase)\n\nThe system has been partially implemented with the following completed components:\n- Core cost tracking modules (src/core/cost_tracker.py, integrated_analyzer.py, cost_updater.py)\n- Database schema and migrations\n- Basic integration hooks\n\nCritical issues that need to be fixed:\n1. Session ID not passed to cost tracking (chat_session.py lines 266, 288)\n2. Migration system fails on first run (cost_tracking.py line 116)\n3. Naming inconsistency (session_id vs conversation_id)\n4. Missing foreign key constraints\n5. Environment variables not documented",
+      "testStrategy": "1. Unit tests for cost calculation accuracy\n2. Database operations testing\n3. Integration tests for end-to-end flow\n4. Performance benchmarking\n5. Multi-provider scenario testing\n6. Budget alert trigger testing",
+      "status": "pending",
+      "dependencies": [
+        81,
+        83
+      ],
+      "priority": "high",
+      "subtasks": []
+    },
+    {
+      "id": 120,
+      "title": "Fix Critical Integration Bug - Session ID Not Passed to Cost Tracking",
+      "description": "Fix the critical bug where session_id is not being passed from chat_session.py to the LLM client, preventing cost tracking from functioning",
+      "details": "Update src/chat_session.py lines 266 and 288 to pass conversation_id=session_id parameter to llm_client.get_response() calls. This is preventing the entire cost tracking system from working.",
+      "testStrategy": "Test end-to-end flow by creating a chat session and verifying costs are recorded in the database",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "subtasks": []
+    },
+    {
+      "id": 121,
+      "title": "Fix Session ID Parameter in Chat Session LLM Client Calls",
+      "description": "Update chat_session.py to pass the session_id as conversation_id parameter to LLM client calls on lines 266 and 288, enabling proper cost tracking functionality.",
+      "details": "This task addresses a critical bug where the session_id is not being properly passed to the LLM client, preventing the cost tracking system from functioning correctly.\n\nImplementation steps:\n1. Locate the file src/chat_session.py\n2. Identify the LLM client calls on lines 266 and 288\n3. Currently, these calls are likely in the format:\n   ```python\n   response = llm_client.get_response(messages=messages, tools=tools, ...)\n   ```\n4. Update both calls to include the conversation_id parameter:\n   ```python\n   response = llm_client.get_response(messages=messages, tools=tools, conversation_id=session_id, ...)\n   ```\n5. Ensure the session_id variable is available in the scope of both function calls\n6. Verify that the parameter name is correct (conversation_id) as expected by the LLM client interface\n7. Check for any other instances in the file where llm_client.get_response() is called and ensure conversation_id is passed there as well\n8. Add comments explaining the importance of this parameter for cost tracking\n\nNote: This fix is critical for the cost tracking system to properly associate API calls with specific chat sessions, enabling accurate usage monitoring and cost analysis.",
+      "testStrategy": "1. Unit Testing:\n   - Create or modify unit tests for the chat_session.py file that verify the conversation_id parameter is correctly passed to the LLM client\n   - Mock the LLM client and assert that get_response() is called with the correct conversation_id parameter\n\n2. Integration Testing:\n   - Run an end-to-end test that initiates a chat session and verifies that costs are properly tracked\n   - Check the cost tracking database/logs to confirm that session_id is correctly associated with the LLM API calls\n   - Verify that multiple chat sessions have separate cost tracking entries\n\n3. Manual Verification:\n   - Add temporary debug logging to confirm the session_id is correctly passed to the LLM client\n   - Inspect the cost tracking system's data to ensure sessions are properly identified\n   - Test with multiple concurrent sessions to verify each is tracked separately\n\n4. Regression Testing:\n   - Ensure all existing chat functionality continues to work correctly\n   - Verify that no new exceptions are introduced by this change",
+      "status": "pending",
+      "dependencies": [
+        96,
+        120
+      ],
+      "priority": "high",
+      "subtasks": []
+    },
+    {
+      "id": 122,
+      "title": "Complete LLM API Cost Tracking System (Task 96)",
+      "description": "Fix critical issues and complete the implementation of the LLM API Cost Tracking System that monitors and reports on LLM API usage costs across multiple providers",
+      "details": "Complete Task 96 by fixing critical integration bugs, standardizing naming conventions, adding missing database constraints, implementing reporting/visualization, and creating comprehensive tests. The system should track costs for OpenAI, Anthropic, Google, and Groq APIs with real-time monitoring, budget alerts, and detailed analytics.",
+      "testStrategy": "Unit tests for cost calculations, integration tests for end-to-end flow, performance tests for latency impact, validation tests against actual invoices",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
       "subtasks": []
     }
   ]
