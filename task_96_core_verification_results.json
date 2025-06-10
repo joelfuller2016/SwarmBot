@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-06-10T08:15:12.858907",
+  "tests": {
+    "migrations": {
+      "status": "PASS",
+      "migration_files_found": 6,
+      "migrations": [
+        "001_cost_tracking_schema.sql",
+        "002_add_model_costs_data.sql",
+        "003_add_cost_tracking_views.sql",
+        "004_add_query_performance_monitoring.sql",
+        "005_add_cost_tracking_foreign_keys.sql",
+        "006_add_budget_alerts_table.sql"
+      ]
+    },
+    "core_modules": {
+      "status": "PASS",
+      "modules_found": 5,
+      "all_modules": [
+        "src/core/cost_tracker.py",
+        "src/core/budget_monitor.py",
+        "src/core/cost_updater.py",
+        "src/core/integrated_analyzer.py",
+        "src/database/cost_tracking.py"
+      ]
+    },
+    "configuration": {
+      "status": "PASS",
+      "env_example_exists": true,
+      "cost_vars_found": 6,
+      "cost_vars_missing": []
+    },
+    "database_migration": {
+      "status": "PASS",
+      "tables_created": 8,
+      "all_tables": [
+        "migration_log",
+        "sqlite_sequence",
+        "model_costs",
+        "request_costs_old",
+        "conversation_costs_old",
+        "query_performance_log",
+        "request_costs",
+        "conversation_costs"
+      ]
+    },
+    "cost_calculation": {
+      "status": "PASS",
+      "calculated_cost": 0.06,
+      "expected_cost": 0.06,
+      "test_scenario": "1000 in, 500 out tokens"
+    },
+    "integration_points": {
+      "status": "FAIL",
+      "error": "'charmap' codec can't decode byte 0x9d in position 4336: character maps to <undefined>"
+    },
+    "ui_components": {
+      "status": "PASS",
+      "components_found": 2,
+      "all_components": [
+        "src/ui/dash/pages/cost_tracking.py",
+        "src/ui/dash/assets/cost_tracking.css"
+      ]
+    }
+  },
+  "overall_status": "FAILED",
+  "critical_issues": [],
+  "warnings": [],
+  "recommendations": []
+}
