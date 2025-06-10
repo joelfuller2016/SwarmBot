@@ -1,0 +1,102 @@
+-- Migration: 003_create_performance_views
+-- Description: Create performance optimization views and monitoring tables
+-- Date: 2025-01-06
+
+BEGIN TRANSACTION;
+
+-- Daily cost summary view
+CREATE VIEW IF NOT EXISTS daily_cost_summary AS
+SELECT 
+    DATE(timestamp) as date,
+    model,
+    COUNT(*) as request_count,
+    SUM(input_tokens) as total_input_tokens,
+    SUM(output_tokens) as total_output_tokens,
+    SUM(total_cost) as total_cost
+FROM request_costs
+GROUP BY DATE(timestamp), model;
+
+-- Conversation cost ranking view
+CREATE VIEW IF NOT EXISTS conversation_cost_ranking AS
+SELECT 
+    c.conversation_id,
+    c.total_cost,
+    c.request_count,
+    CASE 
+        WHEN c.request_count > 0 THEN c.total_cost / c.request_count 
+        ELSE 0 
+    END as avg_cost_per_request,
+    c.start_time,
+    c.last_update,
+    CAST(julianday(c.last_update) - julianday(c.start_time) AS REAL) as duration_days
+FROM conversation_costs c
+ORDER BY c.total_cost DESC;
+
+-- Model usage statistics view
+CREATE VIEW IF NOT EXISTS model_usage_stats AS
+SELECT 
+    r.model,
+    COUNT(DISTINCT r.conversation_id) as conversation_count,
+    COUNT(*) as total_requests,
+    SUM(r.input_tokens) as total_input_tokens,
+    SUM(r.output_tokens) as total_output_tokens,
+    SUM(r.total_cost) as total_cost,
+    AVG(r.total_cost) as avg_cost_per_request
+FROM request_costs r
+GROUP BY r.model;
+
+-- Create table for query performance tracking
+CREATE TABLE IF NOT EXISTS query_performance_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query_hash TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    execution_time_ms INTEGER NOT NULL,
+    rows_examined INTEGER,
+    rows_returned INTEGER,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_performance_timestamp ON query_performance_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_query_performance_execution_time ON query_performance_log(execution_time_ms DESC);
+
+-- High cost alert view (conversations exceeding threshold)
+CREATE VIEW IF NOT EXISTS high_cost_conversations AS
+SELECT 
+    conversation_id,
+    total_cost,
+    request_count,
+    start_time,
+    last_update
+FROM conversation_costs
+WHERE total_cost > (
+    SELECT AVG(total_cost) + 2 * 
+    CASE 
+        WHEN COUNT(*) > 1 THEN 
+            SQRT(SUM((total_cost - (SELECT AVG(total_cost) FROM conversation_costs)) * 
+                     (total_cost - (SELECT AVG(total_cost) FROM conversation_costs))) / (COUNT(*) - 1))
+        ELSE 0
+    END
+    FROM conversation_costs
+)
+ORDER BY total_cost DESC;
+
+-- Token usage patterns view
+CREATE VIEW IF NOT EXISTS token_usage_patterns AS
+SELECT 
+    model,
+    AVG(input_tokens) as avg_input_tokens,
+    AVG(output_tokens) as avg_output_tokens,
+    MAX(input_tokens) as max_input_tokens,
+    MAX(output_tokens) as max_output_tokens,
+    MIN(input_tokens) as min_input_tokens,
+    MIN(output_tokens) as min_output_tokens,
+    COUNT(*) as sample_count
+FROM request_costs
+GROUP BY model
+HAVING sample_count > 10;
+
+-- Insert migration record
+INSERT INTO migration_log (migration_id, applied_at, description)
+VALUES ('003_create_performance_views', datetime('now'), 'Create performance optimization views and monitoring tables');
+
+COMMIT;

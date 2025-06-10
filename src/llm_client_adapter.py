@@ -145,7 +145,48 @@ class LLMClient:
         if not self._client:
             return "LLM client not initialized. Please check your API keys."
         
-        return await self._client.complete(messages)
+        try:
+            return await self._client.complete(messages)
+        except asyncio.TimeoutError as e:
+            error_details = {
+                "timestamp": datetime.now().isoformat(),
+                "error_type": "AsyncioTimeoutError",
+                "error_message": str(e) or "Async operation timed out",
+                "provider": self.provider_name,
+                "messages_count": len(messages),
+                "first_message_role": messages[0].get('role', 'unknown') if messages else 'no_messages',
+                "traceback": traceback.format_exc()
+            }
+            logger.error(f"Async LLM Timeout Error: {error_details}")
+            return f"Error: Async operation timed out. Provider: {self.provider_name}. Check network connection and API status."
+        except Exception as e:
+            error_details = {
+                "timestamp": datetime.now().isoformat(),
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "provider": self.provider_name,
+                "messages_count": len(messages),
+                "first_message_role": messages[0].get('role', 'unknown') if messages else 'no_messages',
+                "traceback": traceback.format_exc(),
+                "exception_args": getattr(e, 'args', None)
+            }
+            logger.error(f"Async LLM Error: {error_details}")
+            
+            # Still try to use the client's error handler if available
+            if self._client and hasattr(self._client, 'handle_error'):
+                handled_response = self._client.handle_error(e)
+                logger.info(f"Client handled async error response: {handled_response}")
+                return handled_response
+            
+            # Provide more actionable error messages based on error type
+            if "api_key" in str(e).lower() or "authentication" in str(e).lower():
+                return f"Error: API key issue for {self.provider_name}. Please check your {self.provider_name.upper()}_API_KEY environment variable."
+            elif "rate limit" in str(e).lower():
+                return f"Error: Rate limit exceeded for {self.provider_name}. Please wait a moment and try again."
+            elif "connection" in str(e).lower() or "network" in str(e).lower():
+                return f"Error: Network connection issue with {self.provider_name}. Please check your internet connection."
+            
+            return f"Error ({type(e).__name__}): {str(e)} - Provider: {self.provider_name}. Check logs for full details."
     
     def validate_connection(self) -> bool:
         """Validate the LLM connection."""

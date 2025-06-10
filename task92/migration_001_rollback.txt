@@ -1,0 +1,23 @@
+-- Rollback Migration: 001_cost_tracking_schema
+-- Description: Remove cost tracking tables and related objects
+-- Date: 2025-01-06
+
+BEGIN TRANSACTION;
+
+-- Drop trigger
+DROP TRIGGER IF EXISTS update_conversation_costs_on_insert;
+
+-- Drop views
+DROP VIEW IF EXISTS daily_cost_summary;
+DROP VIEW IF EXISTS conversation_cost_ranking;
+DROP VIEW IF EXISTS model_usage_stats;
+
+-- Drop tables
+DROP TABLE IF EXISTS conversation_costs;
+DROP TABLE IF EXISTS request_costs;
+DROP TABLE IF EXISTS model_costs;
+
+-- Remove migration record
+DELETE FROM migration_log WHERE migration_id = '001_cost_tracking_schema';
+
+COMMIT;

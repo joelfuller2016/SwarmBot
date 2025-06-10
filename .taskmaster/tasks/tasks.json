@@ -2237,7 +2237,7 @@
           "id": 96.1,
           "title": "Implement core cost tracking modules",
           "description": "Create the main cost tracking modules that will handle cost calculations and provider integrations",
-          "status": "in_progress",
+          "status": "completed",
           "tasks": [
             "Complete implementation of src/core/cost_tracker.py with ModelCost and RequestCost classes",
             "Implement src/core/integrated_analyzer.py for token analyzer integration",
@@ -2248,19 +2248,60 @@
           "id": 96.2,
           "title": "Create database schema for cost tracking",
           "description": "Implement the database schema required for storing cost-related information",
-          "status": "pending",
+          "status": "completed",
           "tasks": [
             "Create model_costs table with fields: model_name, provider, input_cost_per_1k, output_cost_per_1k, context_window, last_updated",
             "Create request_costs table with fields: id, conversation_id, timestamp, model, input_tokens, output_tokens, input_cost, output_cost, total_cost",
             "Create conversation_costs table with fields: conversation_id, start_time, last_update, total_cost, request_count",
             "Implement database migration scripts"
-          ]
+          ],
+          "details": {
+            "SQL Table Definitions": {
+              "model_costs": {
+                "schema": "CREATE TABLE model_costs (\n  model_name VARCHAR(100) NOT NULL,\n  provider VARCHAR(50) NOT NULL,\n  input_cost_per_1k DECIMAL(10,6) NOT NULL,\n  output_cost_per_1k DECIMAL(10,6) NOT NULL,\n  context_window INTEGER NOT NULL,\n  last_updated DATETIME NOT NULL,\n  PRIMARY KEY (model_name, provider)\n);\nCREATE INDEX idx_model_costs_provider ON model_costs(provider);",
+                "notes": "Stores pricing information for each model from different providers. Uses composite primary key to ensure uniqueness."
+              },
+              "request_costs": {
+                "schema": "CREATE TABLE request_costs (\n  id UUID PRIMARY KEY,\n  conversation_id VARCHAR(100) NOT NULL,\n  timestamp DATETIME NOT NULL,\n  model VARCHAR(100) NOT NULL,\n  input_tokens INTEGER NOT NULL,\n  output_tokens INTEGER NOT NULL,\n  input_cost DECIMAL(10,6) NOT NULL,\n  output_cost DECIMAL(10,6) NOT NULL,\n  total_cost DECIMAL(10,6) NOT NULL,\n  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE\n);\nCREATE INDEX idx_request_costs_conversation ON request_costs(conversation_id);\nCREATE INDEX idx_request_costs_timestamp ON request_costs(timestamp);\nCREATE INDEX idx_request_costs_model ON request_costs(model);",
+                "notes": "Records individual API requests with token counts and associated costs. Indexes support efficient querying by conversation, time, and model."
+              },
+              "conversation_costs": {
+                "schema": "CREATE TABLE conversation_costs (\n  conversation_id VARCHAR(100) PRIMARY KEY,\n  start_time DATETIME NOT NULL,\n  last_update DATETIME NOT NULL,\n  total_cost DECIMAL(12,4) NOT NULL,\n  request_count INTEGER NOT NULL,\n  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE\n);\nCREATE INDEX idx_conversation_costs_time ON conversation_costs(start_time, last_update);",
+                "notes": "Aggregates costs at the conversation level for efficient reporting. Includes request count for average cost calculations."
+              }
+            },
+            "SQLite Implementation Considerations": {
+              "data_types": "For SQLite implementation:\n- Use TEXT for VARCHAR fields (model_name, provider, conversation_id, model)\n- Use REAL for DECIMAL values with application-level precision handling\n- Use INTEGER for token counts, context_window, and request_count\n- Use TEXT for DATETIME fields with ISO8601 format (YYYY-MM-DD HH:MM:SS)",
+              "constraints": "Add CHECK constraints for data validation:\n- CHECK (input_cost_per_1k >= 0)\n- CHECK (output_cost_per_1k >= 0)\n- CHECK (context_window > 0)\n- CHECK (input_tokens >= 0)\n- CHECK (output_tokens >= 0)\n- CHECK (request_count >= 0)",
+              "performance": "Enable WAL mode for better concurrency:\n```sql\nPRAGMA journal_mode = WAL;\n```",
+              "triggers": "Create triggers to automatically update conversation_costs:\n```sql\nCREATE TRIGGER update_conversation_costs_after_insert\nAFTER INSERT ON request_costs\nBEGIN\n  INSERT INTO conversation_costs (conversation_id, start_time, last_update, total_cost, request_count)\n  VALUES (NEW.conversation_id, NEW.timestamp, NEW.timestamp, NEW.total_cost, 1)\n  ON CONFLICT(conversation_id) DO UPDATE SET\n    last_update = NEW.timestamp,\n    total_cost = total_cost + NEW.total_cost,\n    request_count = request_count + 1;\nEND;\n```"
+            },
+            "Migration Strategy": {
+              "files": "Create the following migration files:\n- migrations/001_cost_tracking_schema.sql (forward migration)\n- migrations/001_cost_tracking_schema_rollback.sql (rollback script)",
+              "tools": "Use alembic for migration management:\n```python\n# alembic/versions/001_cost_tracking_schema.py\nfrom alembic import op\nimport sqlalchemy as sa\n\ndef upgrade():\n    # Implementation of all table creations\n    pass\n\ndef downgrade():\n    # Implementation of all table drops\n    pass\n```",
+              "testing": "Test migration process:\n1. Create a copy of production database\n2. Apply migrations\n3. Verify schema integrity\n4. Test rollback procedure\n5. Validate data consistency",
+              "seeding": "Create data seeding script for initial model costs:\n```python\n# seed_model_costs.py\nfrom datetime import datetime\nfrom src.database.connection import get_db_connection\n\ndef seed_model_costs():\n    conn = get_db_connection()\n    now = datetime.utcnow()\n    \n    # OpenAI models\n    models = [\n        ('gpt-4', 'openai', 0.03, 0.06, 8192, now),\n        ('gpt-3.5-turbo', 'openai', 0.0015, 0.002, 4096, now),\n        # Add more models\n    ]\n    \n    conn.executemany(\n        'INSERT INTO model_costs VALUES (?, ?, ?, ?, ?, ?)',\n        models\n    )\n    conn.commit()\n```"
+            },
+            "Performance Optimizations": {
+              "indexes": "Create composite indexes for common query patterns:\n```sql\nCREATE INDEX idx_request_costs_model_time ON request_costs(model, timestamp);\nCREATE INDEX idx_request_costs_conv_time ON request_costs(conversation_id, timestamp);\n```",
+              "partitioning": "For high-volume systems, consider partitioning request_costs by date:\n```sql\n-- Example using SQLite's virtual tables or implementing application-level partitioning\nCREATE TABLE request_costs_YYYYMM AS SELECT * FROM request_costs WHERE 0;\n```",
+              "views": "Create views for common aggregations:\n```sql\nCREATE VIEW daily_costs AS\nSELECT \n  date(timestamp) as day,\n  model,\n  provider,\n  SUM(input_tokens) as total_input_tokens,\n  SUM(output_tokens) as total_output_tokens,\n  SUM(total_cost) as daily_cost\nFROM request_costs\nJOIN model_costs USING (model_name, provider)\nGROUP BY day, model, provider;\n```",
+              "connection_pooling": "Implement connection pooling in the database connection manager:\n```python\n# src/database/connection.py\nfrom sqlalchemy import create_engine\nfrom sqlalchemy.pool import QueuePool\n\nengine = create_engine('sqlite:///app.db', poolclass=QueuePool, pool_size=5, max_overflow=10)\n```",
+              "monitoring": "Add query performance monitoring:\n```python\n# src/database/monitoring.py\nimport time\nfrom functools import wraps\n\ndef monitor_query(func):\n    @wraps(func)\n    def wrapper(*args, **kwargs):\n        start_time = time.time()\n        result = func(*args, **kwargs)\n        duration = time.time() - start_time\n        if duration > 0.5:  # Log slow queries\n            logger.warning(f\"Slow query: {func.__name__} took {duration:.2f}s\")\n        return result\n    return wrapper\n```"
+            },
+            "Integration Points": {
+              "database_logger": "Extend existing DatabaseLogger class:\n```python\n# src/database/logger.py\nclass DatabaseLogger:\n    # Existing methods...\n    \n    def log_request_cost(self, request_id, conversation_id, model, input_tokens, output_tokens, input_cost, output_cost):\n        total_cost = input_cost + output_cost\n        self.conn.execute(\n            'INSERT INTO request_costs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',\n            (request_id, conversation_id, datetime.utcnow(), model, \n             input_tokens, output_tokens, input_cost, output_cost, total_cost)\n        )\n        self.conn.commit()\n```",
+              "cost_tracking_db": "Create CostTrackingDB class for cost-specific operations:\n```python\n# src/database/cost_tracking.py\nclass CostTrackingDB:\n    def __init__(self, conn=None):\n        self.conn = conn or get_db_connection()\n    \n    def get_model_cost(self, model_name, provider):\n        result = self.conn.execute(\n            'SELECT * FROM model_costs WHERE model_name = ? AND provider = ?',\n            (model_name, provider)\n        ).fetchone()\n        return result\n    \n    def update_model_costs(self, model_costs):\n        # Bulk update model costs\n        pass\n    \n    def get_conversation_costs(self, conversation_id=None, start_date=None, end_date=None):\n        # Get conversation costs with optional filtering\n        pass\n    \n    def get_total_costs(self, start_date=None, end_date=None, provider=None, model=None):\n        # Get aggregated costs with optional filtering\n        pass\n```",
+              "caching": "Implement caching layer for frequently accessed model costs:\n```python\n# src/database/cache.py\nfrom functools import lru_cache\n\nclass ModelCostCache:\n    def __init__(self, db):\n        self.db = db\n        self.refresh_cache()\n    \n    @lru_cache(maxsize=100)\n    def get_model_cost(self, model_name, provider):\n        return self.db.get_model_cost(model_name, provider)\n    \n    def refresh_cache(self):\n        self.get_model_cost.cache_clear()\n```",
+              "health_checks": "Add database health checks:\n```python\n# src/database/health.py\ndef check_db_health():\n    try:\n        conn = get_db_connection()\n        result = conn.execute('SELECT 1').fetchone()\n        tables = conn.execute(\n            \"SELECT name FROM sqlite_master WHERE type='table'\"\n        ).fetchall()\n        required_tables = ['model_costs', 'request_costs', 'conversation_costs']\n        missing_tables = [t for t in required_tables if t not in [row[0] for row in tables]]\n        \n        return {\n            'status': 'healthy' if not missing_tables else 'degraded',\n            'connection': 'ok' if result else 'failed',\n            'missing_tables': missing_tables\n        }\n    except Exception as e:\n        return {'status': 'unhealthy', 'error': str(e)}\n```"
+            }
+          }
         },
         {
           "id": 96.3,
           "title": "Integrate with existing system components",
           "description": "Modify existing components to work with the cost tracking system",
-          "status": "pending",
+          "status": "in_progress",
           "tasks": [
             "Update context_manager.py to track costs without enforcing limits",
             "Modify LLM client adapters to report token usage",
