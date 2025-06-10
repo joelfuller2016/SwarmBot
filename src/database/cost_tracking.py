@@ -113,9 +113,14 @@ class CostTrackingDB(ChatDatabase):
             
             # Check if migration already applied
             cursor = self.conn.cursor()
-            cursor.execute("SELECT 1 FROM migration_log WHERE migration_id = ?", (migration_id,))
-            if cursor.fetchone():
-                continue
+            try:
+                cursor.execute("SELECT 1 FROM migration_log WHERE migration_id = ?", (migration_id,))
+                if cursor.fetchone():
+                    continue
+            except sqlite3.OperationalError as e:
+                # Table doesn't exist yet, proceed with migration
+                if "no such table: migration_log" not in str(e):
+                    raise  # Re-raise if it's a different error
             
             # Run migration
             try:
@@ -180,7 +185,7 @@ class CostTrackingDB(ChatDatabase):
             'context_window': 4096
         }
     
-    def log_request_cost(self, conversation_id: str, model: str, 
+    def log_request_cost(self, session_id: str, model: str, 
                         input_tokens: int, output_tokens: int,
                         provider: Optional[str] = None) -> None:
         """Log the cost of a single API request"""
@@ -196,16 +201,16 @@ class CostTrackingDB(ChatDatabase):
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT INTO request_costs 
-            (conversation_id, model, input_tokens, output_tokens, 
+            (session_id, model, input_tokens, output_tokens, 
              input_cost, output_cost, total_cost)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (conversation_id, model, input_tokens, output_tokens,
+        """, (session_id, model, input_tokens, output_tokens,
               input_cost, output_cost, total_cost))
         self.conn.commit()
         
         logger.debug(f"Logged cost for {model}: {input_tokens} in, {output_tokens} out, ${total_cost:.4f}")
     
-    def get_conversation_cost_summary(self, conversation_id: str) -> Optional[Dict]:
+    def get_conversation_cost_summary(self, session_id: str) -> Optional[Dict]:
         """Get cost summary for a specific conversation"""
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -215,8 +220,8 @@ class CostTrackingDB(ChatDatabase):
                 start_time,
                 last_update
             FROM conversation_costs
-            WHERE conversation_id = ?
-        """, (conversation_id,))
+            WHERE session_id = ?
+        """, (session_id,))
         
         row = cursor.fetchone()
         if row:
@@ -248,7 +253,7 @@ class CostTrackingDB(ChatDatabase):
         cursor.execute("""
             SELECT 
                 r.model,
-                COUNT(DISTINCT r.conversation_id) as conversation_count,
+                COUNT(DISTINCT r.session_id) as conversation_count,
                 COUNT(*) as total_requests,
                 SUM(r.input_tokens) as total_input_tokens,
                 SUM(r.output_tokens) as total_output_tokens,
@@ -266,7 +271,7 @@ class CostTrackingDB(ChatDatabase):
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT 
-                c.conversation_id,
+                c.session_id,
                 c.total_cost,
                 c.request_count,
                 c.total_cost / c.request_count as avg_cost_per_request,
@@ -310,7 +315,7 @@ class CostTrackingDB(ChatDatabase):
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT 
-                conversation_id,
+                session_id,
                 total_cost,
                 request_count,
                 start_time,
@@ -379,7 +384,7 @@ class CostTrackingDB(ChatDatabase):
         cursor = self.conn.cursor()
         query = """
             SELECT 
-                conversation_id,
+                session_id,
                 timestamp,
                 model,
                 input_tokens,
@@ -406,7 +411,7 @@ class CostTrackingDB(ChatDatabase):
         
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['conversation_id', 'timestamp', 'model', 'input_tokens',
+            writer.writerow(['session_id', 'timestamp', 'model', 'input_tokens',
                            'output_tokens', 'input_cost', 'output_cost', 'total_cost'])
             writer.writerows(cursor.fetchall())
         
@@ -516,10 +521,10 @@ class CostTrackingHealthCheck:
         expected_indexes = [
             'idx_model_costs_provider',
             'idx_model_costs_last_updated',
-            'idx_request_costs_conversation_id',
+            'idx_request_costs_session_id',
             'idx_request_costs_timestamp',
             'idx_request_costs_model',
-            'idx_request_costs_conv_time',
+            'idx_request_costs_session_time',
             'idx_conversation_costs_start_time',
             'idx_conversation_costs_last_update',
             'idx_conversation_costs_total_cost'
@@ -558,7 +563,7 @@ class CostTrackingHealthCheck:
             WHERE ABS(c.total_cost - (
                 SELECT COALESCE(SUM(r.total_cost), 0)
                 FROM request_costs r
-                WHERE r.conversation_id = c.conversation_id
+                WHERE r.session_id = c.session_id
             )) > 0.001
         """)
         
@@ -570,7 +575,7 @@ class CostTrackingHealthCheck:
             FROM request_costs r
             WHERE NOT EXISTS (
                 SELECT 1 FROM conversation_costs c
-                WHERE c.conversation_id = r.conversation_id
+                WHERE c.session_id = r.session_id
             )
         """)
         

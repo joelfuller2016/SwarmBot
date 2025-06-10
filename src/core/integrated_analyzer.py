@@ -41,7 +41,7 @@ class IntegratedAnalyzer:
             }
         }
     
-    def analyze_request(self, conversation_id: str, model: str,
+    def analyze_request(self, session_id: str, model: str,
                        input_text: str, output_text: str,
                        provider: Optional[str] = None) -> Dict[str, Any]:
         """Analyze a request for both tokens and cost"""
@@ -51,7 +51,7 @@ class IntegratedAnalyzer:
         
         # Track cost
         request_cost = self.cost_tracker.track_request(
-            conversation_id=conversation_id,
+            session_id=session_id,
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -61,7 +61,7 @@ class IntegratedAnalyzer:
         # Update integrated metrics
         analysis = {
             'timestamp': datetime.now().isoformat(),
-            'conversation_id': conversation_id,
+            'session_id': session_id,
             'model': model,
             'provider': provider,
             'tokens': {
@@ -243,15 +243,15 @@ class IntegratedAnalyzer:
         
         return recommendations
     
-    def analyze_conversation(self, conversation_id: str) -> Dict[str, Any]:
+    def analyze_conversation(self, session_id: str) -> Dict[str, Any]:
         """Analyze a specific conversation's token usage and costs"""
         # Get conversation costs from database
-        conv_summary = self.cost_tracker.db.get_conversation_cost_summary(conversation_id)
+        conv_summary = self.cost_tracker.db.get_conversation_cost_summary(session_id)
         
         # Get requests for this conversation
         conv_requests = [
             r for r in self.session_metrics['requests']
-            if r['conversation_id'] == conversation_id
+            if r['session_id'] == session_id
         ]
         
         if not conv_requests and not conv_summary:
@@ -262,7 +262,7 @@ class IntegratedAnalyzer:
         total_cost = sum(r['cost']['total_cost'] for r in conv_requests if r['cost'])
         
         return {
-            'conversation_id': conversation_id,
+            'session_id': session_id,
             'request_count': len(conv_requests),
             'total_tokens': total_tokens,
             'total_cost': total_cost,
