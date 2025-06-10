@@ -1,0 +1,206 @@
+/* Cost Tracking Dashboard Styles */
+
+.page-header {
+    padding: 20px 0;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.dashboard-title {
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.dashboard-subtitle {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+/* Metric Cards */
+.metrics-row {
+    margin-bottom: 30px;
+}
+
+.metric-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: transform 0.2s;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.metric-card-content {
+    text-align: center;
+}
+
+.metric-label {
+    color: #666;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.metric-subtitle {
+    color: #999;
+    font-size: 0.875rem;
+    margin-top: 4px;
+}
+
+/* Budget Status Colors */
+.budget-ok {
+    color: #28a745;
+}
+
+.budget-warning {
+    color: #ffc107;
+}
+
+.budget-exceeded {
+    color: #dc3545;
+}
+
+.budget-error {
+    color: #6c757d;
+}
+
+/* Charts */
+.chart-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.chart-container h3 {
+    color: #333;
+    font-size: 1.25rem;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+/* Tables */
+.table-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-top: 15px;
+}
+
+/* Export Section */
+.export-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 25px;
+    margin-top: 30px;
+}
+
+.export-section h3 {
+    color: #333;
+    font-size: 1.25rem;
+    margin-bottom: 20px;
+}
+
+.export-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.export-controls label {
+    font-weight: 500;
+    margin-bottom: 0;
+}
+
+/* Buttons */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #545b62;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .metric-card {
+        margin-bottom: 15px;
+    }
+    
+    .export-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .export-controls button {
+        width: 100%;
+    }
+}
+
+/* Bootstrap column overrides for metric cards */
+.col-3 {
+    flex: 0 0 25%;
+    max-width: 25%;
+    padding: 0 10px;
+}
+
+.col-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding: 0 10px;
+}
+
+.col-12 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding: 0 10px;
+}
+
+@media (max-width: 992px) {
+    .col-3 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+
+@media (max-width: 576px) {
+    .col-3, .col-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
