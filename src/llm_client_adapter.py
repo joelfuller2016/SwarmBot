@@ -7,12 +7,14 @@ import asyncio
 import logging
 import traceback
 import concurrent.futures
+import uuid
 from datetime import datetime
 from typing import List, Dict, Optional
 
 from .llm.client_factory import LLMClientFactory
 from .llm.base_client import BaseLLMClient
 from .config import Configuration
+from .core.integrated_analyzer import IntegratedAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,19 @@ class LLMClient:
         # Load configuration
         self.config = Configuration()
         self.timeout = self.config.llm_timeout
+        
+        # Initialize cost tracking if enabled
+        self.cost_tracking_enabled = self.config.get('TRACK_COSTS', True)
+        self.integrated_analyzer = None
+        self.default_conversation_id = str(uuid.uuid4())
+        
+        if self.cost_tracking_enabled:
+            try:
+                self.integrated_analyzer = IntegratedAnalyzer(self.config)
+                logger.info("Cost tracking initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cost tracking: {e}")
+                self.cost_tracking_enabled = False
         
         # Create the underlying async client
         self._client: Optional[BaseLLMClient] = None
@@ -53,7 +68,53 @@ class LLMClient:
         if not self._client:
             raise ValueError("Failed to initialize any LLM provider")
     
-    def get_response(self, messages: List[Dict[str, str]]) -> str:
+    def _extract_provider_name(self) -> str:
+        """Extract the actual provider name from the client class."""
+        if self._client:
+            class_name = self._client.__class__.__name__
+            # Map client class names to provider names
+            provider_map = {
+                'OpenAIClient': 'openai',
+                'AnthropicClient': 'anthropic',
+                'GroqClient': 'groq',
+                'GoogleClient': 'google',
+                'GoogleGeminiClient': 'google',
+                'GeminiClient': 'google'
+            }
+            return provider_map.get(class_name, self.provider or 'unknown')
+        return self.provider or 'unknown'
+    
+    def _track_cost(self, messages: List[Dict[str, str]], response: str, 
+                   conversation_id: Optional[str] = None):
+        """Track the cost of an LLM request."""
+        if not self.cost_tracking_enabled or not self.integrated_analyzer:
+            return
+        
+        try:
+            # Extract input text from messages
+            input_text = "\n".join([msg.get('content', '') for msg in messages])
+            
+            # Use provided conversation_id or default
+            conv_id = conversation_id or self.default_conversation_id
+            
+            # Get the actual provider name
+            provider = self._extract_provider_name()
+            
+            # Analyze the request for cost tracking
+            self.integrated_analyzer.analyze_request(
+                conversation_id=conv_id,
+                model=self._client.model if hasattr(self._client, 'model') else 'unknown',
+                input_text=input_text,
+                output_text=response,
+                provider=provider
+            )
+            
+        except Exception as e:
+            # Log error but don't break LLM functionality
+            logger.error(f"Error tracking cost: {e}")
+    
+    def get_response(self, messages: List[Dict[str, str]], 
+                    conversation_id: Optional[str] = None) -> str:
         """
         Get a response from the LLM (synchronous interface).
         
@@ -70,7 +131,7 @@ class LLMClient:
                 future = asyncio.run_coroutine_threadsafe(
                     self._client.complete(messages), loop
                 )
-                return future.result(timeout=self.timeout)
+                response = future.result(timeout=self.timeout)
             except RuntimeError:
                 # No event loop running, create one
                 loop = asyncio.new_event_loop()
@@ -80,9 +141,13 @@ class LLMClient:
                     response = loop.run_until_complete(
                         self._client.complete(messages)
                     )
-                    return response
                 finally:
                     loop.close()
+            
+            # Track cost if successful
+            self._track_cost(messages, response, conversation_id)
+            
+            return response
                     
         except concurrent.futures.TimeoutError as e:
             error_details = {
@@ -140,13 +205,20 @@ class LLMClient:
             
             return f"Error ({type(e).__name__}): {str(e)} - Provider: {self.provider_name}. Check logs for full details."
     
-    async def get_response_async(self, messages: List[Dict[str, str]]) -> str:
+    async def get_response_async(self, messages: List[Dict[str, str]], 
+                                conversation_id: Optional[str] = None) -> str:
         """Get a response from the LLM (async interface)."""
         if not self._client:
             return "LLM client not initialized. Please check your API keys."
         
         try:
-            return await self._client.complete(messages)
+            response = await self._client.complete(messages)
+            
+            # Track cost if successful
+            self._track_cost(messages, response, conversation_id)
+            
+            return response
+            
         except asyncio.TimeoutError as e:
             error_details = {
                 "timestamp": datetime.now().isoformat(),
@@ -191,6 +263,17 @@ class LLMClient:
     def validate_connection(self) -> bool:
         """Validate the LLM connection."""
         return self._client.validate_connection() if self._client else False
+    
+    def get_cost_summary(self) -> Dict[str, Any]:
+        """Get cost tracking summary if enabled."""
+        if self.cost_tracking_enabled and self.integrated_analyzer:
+            return self.integrated_analyzer.get_integrated_summary()
+        return {"error": "Cost tracking not enabled"}
+    
+    def shutdown(self):
+        """Cleanup and shutdown cost tracking."""
+        if self.cost_tracking_enabled and self.integrated_analyzer:
+            self.integrated_analyzer.shutdown()
     
     @property
     def is_initialized(self) -> bool:
