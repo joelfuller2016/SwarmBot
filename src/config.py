@@ -52,6 +52,17 @@ class Configuration:
         
         # LLM timeout configuration
         self.llm_timeout = int(os.getenv("LLM_TIMEOUT", "60"))  # Default 60 seconds
+        
+        # Cost tracking configuration
+        self.config = {
+            'TRACK_COSTS': os.getenv("TRACK_COSTS", "true").lower() == "true",
+            'COST_ALERT_THRESHOLD': float(os.getenv("COST_ALERT_THRESHOLD", "10.0")),
+            'CUSTOM_COSTS_FILE': os.getenv("CUSTOM_COSTS_FILE"),
+            'EXPORT_COSTS_ON_EXIT': os.getenv("EXPORT_COSTS_ON_EXIT", "false").lower() == "true",
+            'DATABASE_PATH': os.getenv("DATABASE_PATH", "data/swarmbot_chats.db"),
+            'COST_UPDATE_INTERVAL_HOURS': int(os.getenv("COST_UPDATE_INTERVAL_HOURS", "24")),
+            'DATA_DIR': os.getenv("DATA_DIR", "data")
+        }
 
     @staticmethod
     def load_env() -> None:
@@ -108,3 +119,7 @@ class Configuration:
                 env[key] = value
         
         return env
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value by key with optional default."""
+        return self.config.get(key, default)

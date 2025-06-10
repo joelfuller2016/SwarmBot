@@ -5,11 +5,14 @@ Extends the existing database infrastructure to track and analyze API costs
 
 import sqlite3
 import json
+import time
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
-from functools import lru_cache
+from functools import lru_cache, wraps
 import logging
 from pathlib import Path
+from decimal import Decimal
 
 from .chat_storage import ChatDatabase
 
@@ -25,8 +28,75 @@ class CostTrackingDB(ChatDatabase):
         self._model_costs_cache = {}
         self._cache_last_refresh = None
         self._cache_refresh_interval = timedelta(hours=1)
+        self._configure_sqlite_optimizations()
         self._run_migrations()
         self._load_model_costs_cache()
+    
+    def _configure_sqlite_optimizations(self):
+        """Configure SQLite for optimal performance with cost tracking"""
+        cursor = self.conn.cursor()
+        
+        # Enable Write-Ahead Logging for better concurrency
+        cursor.execute("PRAGMA journal_mode = WAL")
+        
+        # Set synchronous mode for balance between safety and performance
+        cursor.execute("PRAGMA synchronous = NORMAL")
+        
+        # Enable foreign key constraints
+        cursor.execute("PRAGMA foreign_keys = ON")
+        
+        # Set cache size (negative value = KB)
+        cursor.execute("PRAGMA cache_size = -10000")
+        
+        # Enable query planner optimizations
+        cursor.execute("PRAGMA optimize")
+        
+        logger.info("SQLite optimizations configured for cost tracking")
+    
+    def monitor_query(self, func):
+        """Decorator to monitor query performance"""
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            
+            # Get the SQL query from the function arguments
+            query_text = None
+            if args and isinstance(args[0], str):
+                query_text = args[0]
+            elif 'query' in kwargs:
+                query_text = kwargs['query']
+            
+            # Execute the query
+            result = func(*args, **kwargs)
+            
+            # Calculate execution time
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Log slow queries
+            if execution_time_ms > 100 and query_text:
+                self._log_query_performance(query_text, execution_time_ms)
+            
+            return result
+        return wrapper
+    
+    def _log_query_performance(self, query_text: str, execution_time_ms: int, 
+                              rows_examined: Optional[int] = None, 
+                              rows_returned: Optional[int] = None):
+        """Log query performance metrics"""
+        # Generate query hash for grouping similar queries
+        query_hash = hashlib.md5(query_text.encode()).hexdigest()
+        
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                INSERT INTO query_performance_log 
+                (query_hash, query_text, execution_time_ms, rows_examined, rows_returned)
+                VALUES (?, ?, ?, ?, ?)
+            """, (query_hash, query_text, execution_time_ms, rows_examined, rows_returned))
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            # Table might not exist yet if migrations haven't run
+            pass
     
     def _run_migrations(self):
         """Run database migrations for cost tracking"""
@@ -116,10 +186,12 @@ class CostTrackingDB(ChatDatabase):
         """Log the cost of a single API request"""
         model_costs = self._get_model_costs(model, provider)
         
-        # Calculate costs
-        input_cost = (input_tokens / 1000) * model_costs['input_cost_per_1k']
-        output_cost = (output_tokens / 1000) * model_costs['output_cost_per_1k']
-        total_cost = input_cost + output_cost
+        # Calculate costs using Decimal for precision
+        input_cost = float(Decimal(str(input_tokens)) / Decimal('1000') * 
+                          Decimal(str(model_costs['input_cost_per_1k'])))
+        output_cost = float(Decimal(str(output_tokens)) / Decimal('1000') * 
+                           Decimal(str(model_costs['output_cost_per_1k'])))
+        total_cost = float(Decimal(str(input_cost)) + Decimal(str(output_cost)))
         
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -282,6 +354,130 @@ class CostTrackingDB(ChatDatabase):
             'min_estimated': 0.0,
             'avg_daily_cost': 0.0
         }
+    
+    def export_costs_json(self, start_date: Optional[str] = None, 
+                         end_date: Optional[str] = None) -> str:
+        """Export cost data as JSON"""
+        data = {
+            'export_date': datetime.now().isoformat(),
+            'date_range': {
+                'start': start_date or 'all',
+                'end': end_date or 'current'
+            },
+            'summary': self.get_cost_summary(start_date, end_date),
+            'daily_costs': self.get_daily_costs(30),
+            'model_usage': self.get_model_usage_stats(),
+            'top_conversations': self.get_conversation_rankings(50)
+        }
+        return json.dumps(data, indent=2, default=str)
+    
+    def export_costs_csv(self, output_path: str, start_date: Optional[str] = None,
+                        end_date: Optional[str] = None) -> None:
+        """Export cost data as CSV"""
+        import csv
+        
+        cursor = self.conn.cursor()
+        query = """
+            SELECT 
+                conversation_id,
+                timestamp,
+                model,
+                input_tokens,
+                output_tokens,
+                input_cost,
+                output_cost,
+                total_cost
+            FROM request_costs
+        """
+        
+        params = []
+        if start_date or end_date:
+            conditions = []
+            if start_date:
+                conditions.append("timestamp >= ?")
+                params.append(start_date)
+            if end_date:
+                conditions.append("timestamp <= ?")
+                params.append(end_date)
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY timestamp DESC"
+        cursor.execute(query, params)
+        
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['conversation_id', 'timestamp', 'model', 'input_tokens',
+                           'output_tokens', 'input_cost', 'output_cost', 'total_cost'])
+            writer.writerows(cursor.fetchall())
+        
+        logger.info(f"Exported cost data to {output_path}")
+    
+    def get_cost_summary(self, start_date: Optional[str] = None,
+                        end_date: Optional[str] = None) -> Dict[str, Any]:
+        """Get comprehensive cost summary"""
+        cursor = self.conn.cursor()
+        
+        query = "SELECT SUM(total_cost) as total, COUNT(*) as requests FROM request_costs"
+        params = []
+        
+        if start_date or end_date:
+            conditions = []
+            if start_date:
+                conditions.append("timestamp >= ?")
+                params.append(start_date)
+            if end_date:
+                conditions.append("timestamp <= ?")
+                params.append(end_date)
+            query += " WHERE " + " AND ".join(conditions)
+        
+        cursor.execute(query, params)
+        result = cursor.fetchone()
+        
+        return {
+            'total_cost': result['total'] or 0,
+            'total_requests': result['requests'] or 0,
+            'average_cost_per_request': (result['total'] / result['requests']) if result['requests'] else 0
+        }
+    
+    def check_budget_threshold(self, threshold: float) -> Dict[str, Any]:
+        """Check if current month's costs exceed threshold"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT SUM(total_cost) as month_total
+            FROM request_costs
+            WHERE timestamp >= date('now', 'start of month')
+        """)
+        
+        result = cursor.fetchone()
+        month_total = result['month_total'] or 0
+        
+        return {
+            'current_month_cost': month_total,
+            'budget_threshold': threshold,
+            'exceeded': month_total > threshold,
+            'percentage_used': (month_total / threshold * 100) if threshold > 0 else 0,
+            'remaining_budget': max(0, threshold - month_total)
+        }
+    
+    def get_slow_queries(self, min_execution_time_ms: int = 100) -> List[Dict]:
+        """Get slow queries from performance log"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT 
+                query_hash,
+                query_text,
+                COUNT(*) as execution_count,
+                AVG(execution_time_ms) as avg_execution_time_ms,
+                MAX(execution_time_ms) as max_execution_time_ms,
+                MIN(execution_time_ms) as min_execution_time_ms
+            FROM query_performance_log
+            WHERE execution_time_ms > ?
+            GROUP BY query_hash
+            ORDER BY avg_execution_time_ms DESC
+            LIMIT 20
+        """, (min_execution_time_ms,))
+        
+        return [dict(row) for row in cursor.fetchall()]
 
 
 class CostTrackingHealthCheck:
