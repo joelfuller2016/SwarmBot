@@ -1,0 +1,518 @@
+# Task 96: LLM API Cost Tracking System - Complete Documentation
+
+## Table of Contents
+1. [Task Overview](#task-overview)
+2. [System Architecture](#system-architecture)
+3. [Implementation Status](#implementation-status)
+4. [Critical Issues & Fixes](#critical-issues--fixes)
+5. [Technical Implementation Details](#technical-implementation-details)
+6. [Configuration & Setup](#configuration--setup)
+7. [Testing Strategy](#testing-strategy)
+8. [Action Plan & Timeline](#action-plan--timeline)
+9. [API Reference](#api-reference)
+
+---
+
+## Task Overview
+
+**Task ID**: 96  
+**Title**: Implement LLM API Cost Tracking System  
+**Status**: In-Progress  
+**Priority**: High  
+**Dependencies**: Tasks 81, 83  
+
+### Objective
+Develop a comprehensive cost tracking system that monitors and reports on LLM API usage costs across multiple providers (OpenAI, Anthropic, Google, Groq), integrating with the existing token analyzer for real-time cost tracking and analysis.
+
+### Key Requirements
+- Track costs for each API request in real-time
+- Support multiple LLM providers with different pricing models
+- Integrate seamlessly with existing SwarmBot infrastructure
+- Provide budget monitoring and alerting capabilities
+- Generate detailed cost reports and analytics
+- Minimal performance impact (<5% latency increase)
+
+---
+
+## System Architecture
+
+### Core Components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Chat Session                           │
+│  - Creates session_id                                       │
+│  - Manages conversation flow                                │
+│  - ❌ Currently NOT passing session_id to LLM client       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   LLM Client Adapter                        │
+│  - Receives messages and conversation_id                   │
+│  - Calls LLM API                                          │
+│  - ✅ Tracks costs via IntegratedAnalyzer                 │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Integrated Analyzer                        │
+│  - Combines token counting + cost tracking                  │
+│  - Calculates costs based on model pricing                 │
+│  - Logs to database                                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Cost Tracking Database                     │
+│  - SQLite with WAL mode                                   │
+│  - Tables: model_costs, request_costs, conversation_costs  │
+│  - Automatic aggregation via triggers                      │
+│  - ⚠️ Migration system has issues                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Schema
+
+```sql
+-- model_costs: Stores pricing for each model/provider
+CREATE TABLE model_costs (
+    model_name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    input_cost_per_1k REAL NOT NULL,
+    output_cost_per_1k REAL NOT NULL,
+    context_window INTEGER NOT NULL,
+    last_updated DATETIME NOT NULL,
+    PRIMARY KEY (model_name, provider)
+);
+
+-- request_costs: Individual API request costs
+CREATE TABLE request_costs (
+    id INTEGER PRIMARY KEY,
+    conversation_id TEXT NOT NULL,  -- ⚠️ Should be session_id
+    timestamp DATETIME NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    input_cost REAL NOT NULL,
+    output_cost REAL NOT NULL,
+    total_cost REAL NOT NULL
+    -- ❌ Missing FOREIGN KEY to chat_sessions
+);
+
+-- conversation_costs: Aggregated costs per conversation
+CREATE TABLE conversation_costs (
+    conversation_id TEXT PRIMARY KEY,  -- ⚠️ Should be session_id
+    start_time DATETIME NOT NULL,
+    last_update DATETIME NOT NULL,
+    total_cost REAL NOT NULL,
+    request_count INTEGER NOT NULL
+    -- ❌ Missing FOREIGN KEY to chat_sessions
+);
+```
+
+---
+
+## Implementation Status
+
+### ✅ Completed Components
+
+#### **Subtask 96.1: Core Cost Tracking Modules**
+- **src/core/cost_tracker.py** - Main cost tracking logic
+  - `ModelCost` class with Decimal precision for financial accuracy
+  - `RequestCost` class for individual API requests
+  - `CostTracker` manager with session tracking and alerts
+  - Export functionality (JSON/CSV)
+  
+- **src/core/integrated_analyzer.py** - Token + cost analysis
+  - Real-time cost calculation
+  - Model efficiency comparisons
+  - Cost optimization recommendations
+  
+- **src/core/cost_updater.py** - Pricing management
+  - Static pricing data for all major providers
+  - Framework for future API integration
+
+#### **Subtask 96.2: Database Schema**
+- All migration files created (001-004)
+- Database module implemented with optimizations
+- Health check system
+- Query performance monitoring
+- In-memory caching with LRU eviction
+
+#### **Subtask 96.3: System Integration** (Partially Complete)
+- ✅ Context manager tracks cost metadata
+- ✅ LLM client adapter has cost tracking hooks
+- ❌ Critical integration bug prevents functionality
+
+### ⚠️ In-Progress with Issues
+
+- **Subtask 96.3**: System integration has critical bugs
+- **Subtask 96.6**: Configuration implemented but not documented
+
+### ❌ Not Started
+
+- **Subtask 96.4**: Reporting and Visualization
+- **Subtask 96.5**: Alerting and Budgeting System
+- **Subtask 96.7**: Comprehensive Testing
+
+---
+
+## Critical Issues & Fixes
+
+### 🚨 Issue #1: Session ID Not Passed to Cost Tracking
+**Severity**: CRITICAL  
+**Location**: `src/chat_session.py` lines 266, 288  
+**Current Code**:
+```python
+# Line 266
+llm_response = self.llm_client.get_response(messages)
+
+# Line 288  
+final_response = self.llm_client.get_response(messages)
+```
+
+**Required Fix**:
+```python
+# Line 266
+llm_response = self.llm_client.get_response(messages, conversation_id=session_id)
+
+# Line 288
+final_response = self.llm_client.get_response(messages, conversation_id=session_id)
+```
+
+### 🚨 Issue #2: Migration System Fails on First Run
+**Severity**: CRITICAL  
+**Location**: `src/database/cost_tracking.py` line 116  
+**Current Code**:
+```python
+cursor.execute("SELECT 1 FROM migration_log WHERE migration_id = ?", (migration_id,))
+if cursor.fetchone():
+    continue
+```
+
+**Required Fix**:
+```python
+try:
+    cursor.execute("SELECT 1 FROM migration_log WHERE migration_id = ?", (migration_id,))
+    if cursor.fetchone():
+        continue
+except sqlite3.OperationalError:
+    # Table doesn't exist yet, proceed with migration
+    pass
+```
+
+### 🚨 Issue #3: Naming Inconsistency
+**Severity**: MAJOR  
+**Problem**: Mixed use of `session_id` and `conversation_id` throughout codebase  
+**Solution**: Standardize on `session_id` to match existing `chat_sessions` table
+
+### ⚠️ Issue #4: Missing Foreign Key Constraints
+**Severity**: MODERATE  
+**Location**: `migrations/001_cost_tracking_schema.sql`  
+**Required Addition**:
+```sql
+-- In request_costs table
+FOREIGN KEY (conversation_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
+
+-- In conversation_costs table  
+FOREIGN KEY (conversation_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
+```
+
+### ⚠️ Issue #5: Query Performance Log Table Missing
+**Severity**: MODERATE  
+**Problem**: Code references table created in migration 004, not 001  
+**Solution**: Add error handling when logging performance
+
+### ℹ️ Issue #6: Environment Variables Not Documented
+**Severity**: MINOR  
+**Location**: `.env.example`  
+**Required Addition**:
+```bash
+# ==========================================
+# COST TRACKING CONFIGURATION
+# ==========================================
+TRACK_COSTS=true                # Enable/disable cost tracking
+COST_ALERT_THRESHOLD=10.00      # Monthly budget alert threshold (USD)
+CUSTOM_COSTS_FILE=              # Path to custom pricing file (optional)
+EXPORT_COSTS_ON_EXIT=false      # Auto-export costs on shutdown
+```
+
+---
+
+## Technical Implementation Details
+
+### Model Pricing Data (src/core/cost_updater.py)
+
+```python
+STATIC_MODEL_COSTS = {
+    "openai": {
+        "gpt-4": {"input": 0.03, "output": 0.06, "context": 8192},
+        "gpt-4-turbo": {"input": 0.01, "output": 0.03, "context": 128000},
+        "gpt-3.5-turbo": {"input": 0.0015, "output": 0.002, "context": 4096},
+        "gpt-4o": {"input": 0.005, "output": 0.015, "context": 128000},
+        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006, "context": 128000}
+    },
+    "anthropic": {
+        "claude-3-opus": {"input": 0.015, "output": 0.075, "context": 200000},
+        "claude-3-sonnet": {"input": 0.003, "output": 0.015, "context": 200000},
+        "claude-3-haiku": {"input": 0.00025, "output": 0.00125, "context": 200000},
+        "claude-2.1": {"input": 0.008, "output": 0.024, "context": 200000},
+        "claude-instant": {"input": 0.0008, "output": 0.0024, "context": 100000}
+    },
+    "google": {
+        "gemini-pro": {"input": 0.000125, "output": 0.000375, "context": 32760},
+        "gemini-1.5-pro": {"input": 0.0035, "output": 0.0105, "context": 1048576},
+        "gemini-1.5-flash": {"input": 0.00035, "output": 0.00105, "context": 1048576}
+    },
+    "groq": {
+        "llama2-70b": {"input": 0.0007, "output": 0.0008, "context": 4096},
+        "mixtral-8x7b": {"input": 0.00027, "output": 0.00027, "context": 32768},
+        "gemma-7b": {"input": 0.00007, "output": 0.00007, "context": 8192}
+    }
+}
+```
+
+### Cost Calculation Flow
+
+1. **User sends message** → ChatSession creates session_id
+2. **LLM Client receives request** → Should receive session_id (currently broken)
+3. **API call completed** → Response received with token counts
+4. **IntegratedAnalyzer calculates cost**:
+   ```python
+   input_cost = (input_tokens / 1000) * model_cost.input_cost_per_1k
+   output_cost = (output_tokens / 1000) * model_cost.output_cost_per_1k
+   total_cost = input_cost + output_cost
+   ```
+5. **Cost logged to database** → Triggers update aggregated totals
+6. **Budget check** → Alert if threshold exceeded
+
+### Performance Optimizations
+
+- **SQLite WAL Mode**: Better concurrency for reads/writes
+- **In-Memory Caching**: Model costs cached with 1-hour refresh
+- **Indexed Queries**: All foreign keys and common query fields indexed
+- **Automatic Aggregation**: Database triggers maintain conversation totals
+- **Lazy Loading**: Cost data only loaded when needed
+
+---
+
+## Configuration & Setup
+
+### Required Configuration
+
+```python
+# src/config.py additions
+class Configuration:
+    def __init__(self):
+        # Cost tracking settings
+        self.TRACK_COSTS = os.getenv('TRACK_COSTS', 'true').lower() == 'true'
+        self.COST_ALERT_THRESHOLD = float(os.getenv('COST_ALERT_THRESHOLD', '10.0'))
+        self.CUSTOM_COSTS_FILE = os.getenv('CUSTOM_COSTS_FILE', '')
+        self.EXPORT_COSTS_ON_EXIT = os.getenv('EXPORT_COSTS_ON_EXIT', 'false').lower() == 'true'
+```
+
+### Custom Costs File Format
+
+```json
+{
+  "openai": {
+    "gpt-4": {
+      "input_cost_per_1k": 0.03,
+      "output_cost_per_1k": 0.06,
+      "context_window": 8192
+    }
+  }
+}
+```
+
+### Usage Examples
+
+#### Basic Cost Tracking
+```python
+# Automatic when TRACK_COSTS=true
+client = LLMClient(provider="openai")
+response = client.get_response(messages, conversation_id="session_123")
+
+# Get cost summary
+summary = client.get_cost_summary()
+print(f"Total cost: ${summary['session']['total_cost']:.4f}")
+```
+
+#### Manual Cost Query
+```python
+from src.database.cost_tracking import CostTrackingDB
+
+db = CostTrackingDB()
+
+# Get conversation costs
+costs = db.get_conversation_cost_summary("session_123")
+
+# Get daily breakdown
+daily = db.get_daily_costs(days=7)
+
+# Check budget
+status = db.check_budget_threshold(10.0)
+if status['exceeded']:
+    print(f"Budget exceeded! ${status['current_month_cost']:.2f}")
+```
+
+#### Export Cost Data
+```python
+# JSON export
+json_data = db.export_costs_json(start_date="2025-01-01")
+
+# CSV export
+db.export_costs_csv("costs_report.csv", start_date="2025-01-01")
+```
+
+---
+
+## Testing Strategy
+
+### Unit Tests Required
+- Cost calculation accuracy with known values
+- Database operations (CRUD)
+- Migration scenarios
+- Configuration loading
+- Error handling
+
+### Integration Tests Required
+- End-to-end flow from chat to cost recording
+- Multi-provider scenarios
+- Budget alert triggers
+- Export functionality
+- Session ID flow
+
+### Performance Tests Required
+- Impact on request latency
+- Database performance under load
+- Memory usage with caching
+- Concurrent request handling
+
+### Validation Tests Required
+- Compare calculated costs with actual invoices
+- Token counting accuracy
+- Data consistency checks
+- Foreign key integrity
+
+---
+
+## Action Plan & Timeline
+
+### Phase 1: Critical Fixes (Days 1-2)
+**Goal**: Get basic functionality working
+
+1. **Day 1 Morning**: Fix session ID passing bug
+   - Update chat_session.py (2 lines)
+   - Test end-to-end flow
+   
+2. **Day 1 Afternoon**: Fix migration system
+   - Add try-except for migration check
+   - Test fresh installation
+   
+3. **Day 2**: Standardize naming & add foreign keys
+   - Replace conversation_id with session_id
+   - Add foreign key constraints
+   - Update .env.example
+
+### Phase 2: Testing & Documentation (Days 3-4)
+**Goal**: Ensure reliability
+
+1. **Day 3**: Write unit tests
+   - Cost calculation tests
+   - Database operation tests
+   - Migration tests
+   
+2. **Day 4**: Integration testing
+   - Full flow testing
+   - Performance benchmarking
+   - Create user documentation
+
+### Phase 3: UI Development (Days 5-7)
+**Goal**: User-friendly reporting
+
+1. **Day 5**: Dashboard design
+   - Cost overview widget
+   - Model comparison charts
+   
+2. **Days 6-7**: Implementation
+   - Real-time cost display
+   - Historical trends
+   - Export UI
+
+### Phase 4: Advanced Features (Days 8-10)
+**Goal**: Complete functionality
+
+1. **Day 8**: Budget configuration UI
+2. **Day 9**: Alert system (email, webhooks)
+3. **Day 10**: Final testing and documentation
+
+### Phase 5: Production Ready (Days 11-12)
+**Goal**: Polish and deploy
+
+1. Performance optimization
+2. Security review
+3. Final documentation
+4. Deployment guide
+
+---
+
+## API Reference
+
+### CostTracker Class
+```python
+class CostTracker:
+    def __init__(self, config: Configuration)
+    def track_request(conversation_id, model, input_tokens, output_tokens, provider) -> RequestCost
+    def get_session_summary() -> Dict[str, Any]
+    def get_monthly_summary() -> Dict[str, Any]
+    def export_costs(format='json', output_path=None) -> str
+    def shutdown() -> None
+```
+
+### CostTrackingDB Class
+```python
+class CostTrackingDB(ChatDatabase):
+    def log_request_cost(conversation_id, model, input_tokens, output_tokens, provider)
+    def get_conversation_cost_summary(conversation_id) -> Dict
+    def get_daily_costs(days=30) -> List[Dict]
+    def get_model_usage_stats() -> List[Dict]
+    def check_budget_threshold(threshold) -> Dict[str, Any]
+    def export_costs_json(start_date=None, end_date=None) -> str
+    def export_costs_csv(output_path, start_date=None, end_date=None)
+```
+
+### IntegratedAnalyzer Class
+```python
+class IntegratedAnalyzer:
+    def analyze_request(conversation_id, model, input_text, output_text, provider)
+    def get_integrated_summary() -> Dict[str, Any]
+    def get_recommendations() -> List[str]
+    def shutdown() -> None
+```
+
+---
+
+## Success Criteria
+
+The cost tracking system will be considered complete when:
+
+1. ✅ Costs are accurately tracked for each chat session
+2. ✅ System works on fresh installation  
+3. ✅ All configurations are documented
+4. ✅ Basic reporting works (JSON/CSV export)
+5. ✅ Budget alerts function correctly
+6. ✅ Performance impact is minimal (<5% latency increase)
+7. ✅ All tests pass
+8. ✅ User documentation is complete
+
+---
+
+## Conclusion
+
+Task 96 has a solid foundation with well-implemented core modules. The critical issues preventing functionality are straightforward to fix (estimated 1-2 days). The remaining work involves UI development, testing, and documentation (estimated 8-10 additional days).
+
+**Total estimated effort to complete**: 10-12 days
+
+The architecture is extensible, performant, and follows SwarmBot's existing patterns. Once the critical bugs are fixed, the system will provide comprehensive cost tracking and analysis capabilities for all LLM API usage.
