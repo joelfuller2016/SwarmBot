@@ -2410,6 +2410,15 @@
           "status": "in_progress",
           "dependencies": [],
           "parentTaskId": 96
+        },
+        {
+          "id": 98.8,
+          "title": "Fix Session ID Not Passed to Cost Tracking",
+          "description": "Critical fix: Update chat_session.py lines 266 and 288 to pass session_id as conversation_id parameter to LLM client get_response calls",
+          "details": "",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 96
         }
       ]
     },

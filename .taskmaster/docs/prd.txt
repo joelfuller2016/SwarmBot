@@ -1,81 +1,101 @@
-# SwarmBot Test Suite Audit and Cleanup
+Product Requirements Document: LLM API Cost Tracking System
 
-## Project Overview
-Comprehensive audit of all test files in the SwarmBot tests directory to ensure test suite quality and maintainability.
+1. Executive Summary
+The LLM API Cost Tracking System is a critical component for SwarmBot that provides real-time monitoring and reporting of API usage costs across multiple LLM providers (OpenAI, Anthropic, Google, Groq). This system will enable users to track expenses, set budgets, and optimize their LLM usage for cost efficiency.
 
-## Objectives
-1. Audit all test files in the tests directory
-2. Verify each test runs successfully
-3. Fix broken tests or identify why they fail
-4. Remove obsolete or redundant tests
-5. Document test coverage and purpose
-6. Ensure proper organization and naming conventions
+2. Problem Statement
+- Currently no visibility into LLM API costs during usage
+- No budget controls or alerts for excessive spending
+- No ability to compare costs across different models/providers
+- Missing integration between token counting and cost calculation
 
-## Test Categories to Audit
+3. Goals and Objectives
+- Track costs for each API request in real-time
+- Support multiple LLM providers with different pricing models
+- Integrate seamlessly with existing SwarmBot infrastructure
+- Provide budget monitoring and alerting capabilities
+- Generate detailed cost reports and analytics
+- Maintain minimal performance impact (<5% latency increase)
 
-### 1. Main Test Files (45+ files)
-- AsyncIO related tests (test_asyncio_*.py)
-- Dashboard tests (test_dashboard_*.py)
-- WebSocket tests (test_websocket_*.py)
-- Configuration tests (test_config*.py)
-- Fix verification tests (*_fix.py)
-- Integration tests
-- Unit tests
-- Validation scripts
+4. Functional Requirements
 
-### 2. Test Subdirectories
-- archive/ - Old websocket tests (determine if needed)
-- integration/ - Integration test suite
-- mcp/ - MCP-specific tests
-- unit/ - Unit test suite
+4.1 Critical Bug Fixes
+- Fix session ID not being passed from chat_session to LLM client
+- Fix migration system failure on first run
+- Standardize naming convention (session_id vs conversation_id)
+- Add missing foreign key constraints
+- Handle missing query performance log table
 
-### 3. Utility Scripts
-- run_*.py scripts
-- verify_*.py scripts
-- validate_*.py scripts
+4.2 Core Cost Tracking
+- Calculate costs based on token usage and model pricing
+- Store cost data in SQLite database with proper schema
+- Support custom pricing configurations
+- Track costs at request, conversation, and aggregate levels
 
-## Audit Process for Each Test
+4.3 System Integration
+- Integrate with existing chat session management
+- Connect to LLM client adapters
+- Maintain conversation context for cost aggregation
+- Support multiple concurrent sessions
 
-1. **Run Test**: Execute test file and capture results
-2. **Analyze Results**:
-   - If passes: Document purpose and coverage
-   - If fails: Identify root cause
-   - If obsolete: Mark for removal
-3. **Fix or Remove**:
-   - Fix import issues
-   - Update deprecated code
-   - Remove redundant tests
-4. **Document**: Update test documentation
+4.4 Reporting and Analytics
+- Generate cost summaries by session, day, month
+- Export data in JSON and CSV formats
+- Provide model comparison analytics
+- Show cost optimization recommendations
 
-## Success Criteria
-- All retained tests pass successfully
-- No redundant or obsolete tests remain
-- Clear documentation of test purpose
-- Proper organization by category
-- Clean test execution without warnings
+4.5 Budget Management
+- Set monthly/daily spending limits
+- Real-time budget monitoring
+- Configurable alert thresholds
+- Automatic notifications when limits approached
 
-## Technical Requirements
-- Python 3.13 compatibility
-- Proper path references from tests/ directory
-- No circular imports
-- Clean pytest execution
-- No hardcoded paths
+4.6 User Interface
+- Dashboard showing current costs
+- Historical cost trends visualization
+- Model cost comparison charts
+- Budget status indicators
 
-## Deliverables
-1. Working test suite with all tests passing
-2. Removed obsolete tests
-3. Test audit report documenting:
-   - Test purpose and coverage
-   - Tests removed and why
-   - Tests fixed and what was changed
-4. Updated test organization structure
-5. Test execution guide
+5. Technical Requirements
+- Use SQLite with WAL mode for performance
+- Implement LRU caching for model pricing
+- Support decimal precision for financial accuracy
+- Database migrations for schema updates
+- Configuration via environment variables
 
-## Priority Order
-1. Critical path tests (imports, config, basic functionality)
-2. Fix verification tests
-3. Integration tests
-4. WebSocket tests
-5. UI/Dashboard tests
-6. Utility and validation scripts
-7. Archive and deprecated tests
+6. Performance Requirements
+- Maximum 5% latency increase on API calls
+- Support 1000+ concurrent sessions
+- Database queries under 10ms
+- Memory usage under 100MB
+
+7. Testing Requirements
+- Unit tests for all cost calculations
+- Integration tests for end-to-end flow
+- Performance benchmarking
+- Data accuracy validation
+- Migration testing
+
+8. Documentation Requirements
+- API reference documentation
+- Configuration guide
+- User manual
+- Migration instructions
+- Troubleshooting guide
+
+9. Timeline
+- Phase 1 (Days 1-2): Critical bug fixes
+- Phase 2 (Days 3-4): Testing and documentation
+- Phase 3 (Days 5-7): UI development
+- Phase 4 (Days 8-10): Advanced features
+- Phase 5 (Days 11-12): Production readiness
+
+10. Success Criteria
+- Accurate cost tracking for all API calls
+- System works on fresh installation
+- All configurations documented
+- Export functionality operational
+- Budget alerts working correctly
+- Performance within requirements
+- All tests passing
+- Complete user documentation
